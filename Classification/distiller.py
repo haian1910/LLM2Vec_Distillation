@@ -15,7 +15,7 @@ from peft import (
     get_peft_model
 )
 from llm2vec import LLM2Vec
-from Classification.utils import log_rank
+from utils import log_rank
 
 
 class Distiller(nn.Module):
@@ -153,7 +153,16 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
+                model = PeftModel.from_pretrained(
+                    model,
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+                )
+                model = model.merge_and_unload()  # This can take several minutes on cpu
 
+                # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
+                model = PeftModel.from_pretrained(
+                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+                )
 
                 # Apply a new LoRA adapter for fine-tuning
                 if self.args.do_train:
@@ -170,9 +179,8 @@ class Distiller(nn.Module):
                 l2v = LLM2Vec(model, tokenizer, pooling_mode="mean", max_length=512)
 
                 # Classification Head (can be LoRA-enhanced)
-                classification_head = nn.Linear(self.hidden_size, self.args.num_labels)
+                classification_head = torch.nn.Linear(self.teacher_hidden_size, self.args.num_labels)
 
-                # Create a wrapper for the classification model
                 class TeacherModelForClassification(nn.Module):
                     def __init__(self, l2v, classification_head):
                         super().__init__()
@@ -180,13 +188,14 @@ class Distiller(nn.Module):
                         self.classification_head = classification_head
 
                     def forward(self, input_ids, attention_mask=None, **kwargs):
+                        # Decode input_ids to text strings
+                        batch_texts = self.l2v.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
                         # Encode text into vector representation using LLM2Vec
-                        encoded = self.l2v.encode(input_ids=input_ids, attention_mask=attention_mask)
+                        encoded = self.l2v.encode(batch_texts)
                         # Apply classification head
                         logits = self.classification_head(encoded)
                         return logits
 
-                # Initialize the teacher model
                 model = TeacherModelForClassification(l2v, classification_head)
 
             else:
@@ -238,16 +247,18 @@ class Distiller(nn.Module):
         classification_head = torch.nn.Linear(self.teacher_hidden_size, self.args.num_labels)
         
         # Tạo lớp wrapper cho mô hình phân loại
-        class TeacherModelForClassification(torch.nn.Module):
+        class TeacherModelForClassification(nn.Module):
             def __init__(self, l2v, classification_head):
                 super().__init__()
                 self.l2v = l2v
                 self.classification_head = classification_head
-            
+
             def forward(self, input_ids, attention_mask=None, **kwargs):
-                # Mã hóa văn bản thành vector với LLM2Vec
-                encoded = self.l2v.encode(input_ids=input_ids, attention_mask=attention_mask)
-                # Áp dụng lớp phân loại
+                # Decode input_ids to text strings
+                batch_texts = self.l2v.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+                # Encode text into vector representation using LLM2Vec
+                encoded = self.l2v.encode(batch_texts)
+                # Apply classification head
                 logits = self.classification_head(encoded)
                 return logits
         
