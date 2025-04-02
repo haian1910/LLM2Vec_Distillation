@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 import torch.distributed as dist
 from tqdm import tqdm
-from Classification.utils import log_rank
+from utils import log_rank
 from typing import Dict, Optional
 from transformers import AutoTokenizer
 
@@ -22,6 +22,19 @@ class DistillDataset(Dataset):
         self.student_tokenizer = student_tokenizer
         self.teacher_tokenizer = teacher_tokenizer
         self.max_length = args.max_length
+
+        # Ensure pad_token_id is set for student_tokenizer
+        if self.student_tokenizer.pad_token_id is None:
+            log_rank(f"No pad_token_id found in student_tokenizer for {split}. Setting to eos_token.")
+            self.student_tokenizer.pad_token = self.student_tokenizer.eos_token
+            self.student_tokenizer.pad_token_id = self.student_tokenizer.eos_token_id
+
+        # Ensure pad_token_id is set for teacher_tokenizer if provided
+        if self.teacher_tokenizer and self.teacher_tokenizer.pad_token_id is None:
+            log_rank(f"No pad_token_id found in teacher_tokenizer for {split}. Setting to eos_token.")
+            self.teacher_tokenizer.pad_token = self.teacher_tokenizer.eos_token
+            self.teacher_tokenizer.pad_token_id = self.teacher_tokenizer.eos_token_id
+
         self.dataset = self._load_and_process_data()
 
     def __len__(self):
@@ -35,14 +48,14 @@ class DistillDataset(Dataset):
         path = os.path.join(self.args.data_dir, f"{self.split}.csv")
 
         if os.path.exists(path):
-            # Read CSV file
             df = pd.read_csv(path)
+            if 'text' not in df.columns:
+                raise ValueError(f"CSV file {path} must contain a 'text' column")
             label_col = 'label' if 'label' in df.columns else 'labels'
             
             log_rank("Processing dataset for classification...")  
             
             for _, row in tqdm(df.iterrows(), total=len(df), disable=(dist.get_rank() != 0)):
-                # Student tokenizer processing
                 student_input_ids = self.student_tokenizer.encode(
                     row['text'], 
                     add_special_tokens=True,
@@ -55,7 +68,6 @@ class DistillDataset(Dataset):
                     "label": int(row[label_col]) 
                 }
         
-                # Teacher tokenizer processing (if provided)
                 if self.teacher_tokenizer:
                     teacher_input_ids = self.teacher_tokenizer.encode(
                         row['text'],
@@ -73,15 +85,13 @@ class DistillDataset(Dataset):
     def _process_classification(
         self, i, samp, model_data, no_model_data
     ):
-        # Student data
         input_ids = np.array(samp["student_input_ids"])
         input_len = len(input_ids)
         
-        model_data["student_input_ids"][i][:input_len] = torch.tensor(input_ids, dtype=torch.long)
-        model_data["student_attention_mask"][i][:input_len] = 1.0
-        no_model_data["label"][i] = torch.tensor(samp["label"], dtype=torch.long)
+        model_data["input_ids"][i][:input_len] = torch.tensor(input_ids, dtype=torch.long)
+        model_data["attention_mask"][i][:input_len] = 1.0
+        no_model_data["labels"][i] = torch.tensor(samp["label"], dtype=torch.long)
 
-        # Teacher data (if exists)
         if "teacher_input_ids" in samp:
             t_input_ids = np.array(samp["teacher_input_ids"])
             t_input_len = len(t_input_ids)
@@ -98,23 +108,29 @@ class DistillDataset(Dataset):
         bs = len(samples)
         max_length = self.max_length
 
+        student_pad_token_id = self.student_tokenizer.pad_token_id
+        if student_pad_token_id is None:
+            student_pad_token_id = 0
+        
         model_data = {
-            "student_input_ids": torch.ones(bs, max_length, dtype=torch.long) * self.student_tokenizer.pad_token_id,
-            "student_attention_mask": torch.zeros(bs, max_length),
+            "input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
+            "attention_mask": torch.zeros(bs, max_length),
         }
         
-        no_model_data = {
-            "label": torch.zeros(bs, dtype=torch.long)
+        output_data = {
+            "labels": torch.zeros(bs, dtype=torch.long)
         }
 
-        # Add teacher data structures if teacher tokenizer exists
         if self.teacher_tokenizer:
+            teacher_pad_token_id = self.teacher_tokenizer.pad_token_id
+            if teacher_pad_token_id is None:
+                teacher_pad_token_id = 0
             model_data.update({
-                "teacher_input_ids": torch.ones(bs, max_length, dtype=torch.long) * self.teacher_tokenizer.pad_token_id,
+                "teacher_input_ids": torch.ones(bs, max_length, dtype=torch.long) * teacher_pad_token_id,
                 "teacher_attention_mask": torch.zeros(bs, max_length),
             })
 
         for i, samp in enumerate(samples):
-            self._process_classification(i, samp, model_data, no_model_data)
+            self._process_classification(i, samp, model_data, output_data)
         
-        return model_data, no_model_data
+        return model_data, output_data
