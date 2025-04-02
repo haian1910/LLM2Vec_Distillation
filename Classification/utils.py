@@ -132,36 +132,97 @@ def initialize(args):
         Sửa cả đoạn này cho đúng BERT của mình
 '''
 def get_model(args, device):
-    #Lấy cả num_label
     config = AutoConfig.from_pretrained(args.model_path)
     
     st_time = time.time()
     if args.model_parallel:
         raise NotImplementedError
     else:
-        
         config.is_model_parallel = False
-        dtype = torch.float32 if args.fp32 else torch.float16
+        tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+        if hasattr(config, "n_embed"):
+            hidden_size = config.n_embed
+        else:
+            hidden_size = config.hidden_size
+        if args.peft is not None: #for LLM2Vec
+            if args.peft == "lora":
+                dtype = torch.float32 if args.fp32 else torch.float16
+                try:
+                    model = AutoModel.from_pretrained(
+                        args.model_path,
+                        config=config,
+                        device_map={"": device},
+                        torch_dtype=dtype,
+                        trust_remote_code=True,
+                    )
+                except:
+                    model = AutoModel.from_pretrained(
+                        args.model_path,
+                        config=config,
+                        device_map={"": device},
+                        torch_dtype=torch.float32,
+                        trust_remote_code=True,
+                    )
+                    model = model.half()
 
-        try:
-            model = AutoModel.from_pretrained(
-            args.model_path, 
-            config=config, 
-            device_map={"": device}, 
-            torch_dtype=dtype,
-            )
+                # Apply a new LoRA adapter for fine-tuning
+                if args.do_train:
+                    peft_config = LoraConfig(
+                        task_type=TaskType.FEATURE_EXTRACTION,
+                        inference_mode=(not args.do_train),
+                        r=args.peft_lora_r,
+                        lora_alpha=args.peft_lora_alpha,
+                        lora_dropout=args.peft_lora_dropout,
+                    )
+                    model = get_peft_model(model, peft_config)
 
-        except:
-            model = AutoModel.from_pretrained(
-            args.model_path, 
-            config=config, 
-            device_map={"": device}, 
-            torch_dtype=torch.float32,
-            )
-            model = model.half()
-        
-        
-    
+                # Initialize LLM2Vec
+                l2v = LLM2Vec(model, tokenizer, pooling_mode="mean", max_length=512)
+
+                # Classification Head (can be LoRA-enhanced)
+                classification_head = nn.Linear(hidden_size, args.num_labels)
+
+                # Create a wrapper for the classification model
+                class TeacherModelForClassification(nn.Module):
+                    def __init__(self, l2v, classification_head):
+                        super().__init__()
+                        self.l2v = l2v
+                        self.classification_head = classification_head
+
+                    def forward(self, input_ids, attention_mask=None, **kwargs):
+                        # Encode text into vector representation using LLM2Vec
+                        encoded = self.l2v.encode(input_ids=input_ids, attention_mask=attention_mask)
+                        # Apply classification head
+                        logits = self.classification_head(encoded)
+                        return logits
+
+                # Initialize the teacher model
+                model = TeacherModelForClassification(l2v, classification_head)
+            else:
+                raise NotImplementedError
+        else: #for BERT
+            dtype = torch.float32 if args.fp32 else torch.float16
+            config.num_labels = args.num_labels
+            try:
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    args.model_path, 
+                    config=config, 
+                    device_map={"": device}, 
+                    torch_dtype=dtype,
+                    trust_remote_code=True,)
+            except:
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    args.model_path, 
+                    config=config, 
+                    device_map={"": device}, 
+                    torch_dtype=torch.float32,
+                    trust_remote_code=True,)
+                model = model.half()
+            if dist.get_rank() == 0:
+                log_rank(' > number of parameters: {:n}'.format(
+                    sum([p.nelement() for p in model.parameters()])))
+                
     if args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
     
@@ -173,41 +234,44 @@ def get_model(args, device):
 
 
 def get_teacher_model(args, device):
-    simcse_path = "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
-    config = AutoConfig.from_pretrained(args.teacher_model_path)
-    if hasattr(config, "n_embed"):
-            teacher_hidden_size = config.n_embed
-    else:
-            teacher_hidden_size = config.hidden_size
+    config = AutoConfig.from_pretrained(
+            args.teacher_model_path,
+            num_labels=args.num_labels,
+            trust_remote_code=True
+        )
+    
     if args.model_parallel:
         raise NotImplementedError
     else:
         config.is_model_parallel = False
+        tokenizer = AutoTokenizer.from_pretrained(args.teacher_model_path, trust_remote_code=True)
+        tokenizer.pad_token_id = tokenizer.eos_token_id
     
+        if hasattr(config, "n_embed"):
+            teacher_hidden_size = config.n_embed
+        else:
+            teacher_hidden_size = config.hidden_size
+    
+        # Load the base model
         try:
             model = AutoModel.from_pretrained(
-            args.teacher_model_path,
-            config=config,
-            device_map={"": device},
-            torch_dtype=torch.float16,
-        )
+                args.teacher_model_path,
+                config=config,
+                device_map={"": device},
+                torch_dtype=torch.float16,
+                trust_remote_code=True,
+            )
         except:
             model = AutoModel.from_pretrained(
-            args.teacher_model_path,
-            config=config,
-            device_map={"": device},
-            torch_dtype=torch.float32,
-        )
+                args.teacher_model_path,
+                config=config,
+                device_map={"": device},
+                torch_dtype=torch.float32,
+                trust_remote_code=True,
+            )
+            model = model.half()
+            
         
-        tokenizer = AutoTokenizer(args.teacher_model_path)
-        # Load and apply PEFT adapters (assuming a separate adapter path)
-        model = PeftModel.from_pretrained(
-            model,
-            args.teacher_peft_path,  # Replace with actual adapter path
-        )
-        model = model.merge_and_unload()  # Merge adapters into the base model
-
-        model = PeftModel.from_pretrained(model, simcse_path)
         l2v = LLM2Vec(model, tokenizer, pooling_mode="mean", max_length=512)
         # Thêm lớp phân loại
         classification_head = torch.nn.Linear(teacher_hidden_size, args.num_labels)
@@ -227,11 +291,11 @@ def get_teacher_model(args, device):
                 return logits
         
         # Khởi tạo mô hình teacher
-        model = TeacherModelForClassification(l2v, classification_head)
+        teacher_model = TeacherModelForClassification(l2v, classification_head)
 
-    model.eval()
+    teacher_model.eval()
     
-    return model
+    return teacher_model
 
                 
 def get_optimizer_params(args, model: nn.Module):
