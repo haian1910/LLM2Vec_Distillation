@@ -51,14 +51,6 @@ class UniversalLogitDistillation(CrossEntropyLoss):
         )
         log["accuracy"] = accuracy
 
-        # self.record_logits(
-        #     outputs.logits, 
-        #     output_data["label"], 
-        #     log, 
-        #     teacher_outputs.logits, 
-        #     output_data[f"teacher_{distiller.teacher_model_type}_label"]
-        # )
-
         logging_output = self.record_logging_output(
             logging_output, batch_denom, log
         )
