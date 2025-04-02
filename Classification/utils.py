@@ -236,7 +236,6 @@ def get_model(args, device):
 def get_teacher_model(args, device):
     config = AutoConfig.from_pretrained(
             args.teacher_model_path,
-            num_labels=args.num_labels,
             trust_remote_code=True
         )
     
