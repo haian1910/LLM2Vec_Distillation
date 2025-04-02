@@ -12,13 +12,16 @@ from peft import get_peft_model, LoraConfig, TaskType, PeftModel
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
 from torch.nn.parallel import DistributedDataParallel as DDP
+from llm2vec import LLM2Vec
 
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     AutoConfig,
     get_constant_schedule_with_warmup, 
-    get_polynomial_decay_schedule_with_warmup
+    get_polynomial_decay_schedule_with_warmup,
+    AutoModelForSequenceClassification,
+    AutoModel
 )
 
 
@@ -125,70 +128,40 @@ def initialize(args):
 
 
 # Load and save model
+'''
+        Sửa cả đoạn này cho đúng BERT của mình
+'''
 def get_model(args, device):
+    #Lấy cả num_label
     config = AutoConfig.from_pretrained(args.model_path)
     
     st_time = time.time()
     if args.model_parallel:
         raise NotImplementedError
     else:
+        
         config.is_model_parallel = False
         dtype = torch.float32 if args.fp32 else torch.float16
+
         try:
-            model = AutoModelForCausalLM.from_pretrained(
-                args.model_path, 
-                config=config, 
-                device_map={"": device}, 
-                torch_dtype=dtype
+            model = AutoModel.from_pretrained(
+            args.model_path, 
+            config=config, 
+            device_map={"": device}, 
+            torch_dtype=dtype,
             )
+
         except:
-            model = AutoModelForCausalLM.from_pretrained(
-                args.model_path, 
-                config=config, 
-                device_map={"": device}, 
-                torch_dtype=torch.float32
+            model = AutoModel.from_pretrained(
+            args.model_path, 
+            config=config, 
+            device_map={"": device}, 
+            torch_dtype=torch.float32,
             )
             model = model.half()
         
-        if args.peft is not None:
-            if args.peft == "lora":
-                model.enable_input_require_grads()
-                if args.peft_path is not None:
-                    if args.do_train:
-                        _model = PeftModel.from_pretrained(model, args.peft_path)
-                        state_dict = dict(_model.state_dict().items())
-                        peft_config = LoraConfig(
-                            task_type=TaskType.CAUSAL_LM, 
-                            inference_mode=(not args.do_train), 
-                            r=args.peft_lora_r, 
-                            lora_alpha=args.peft_lora_alpha, 
-                            lora_dropout=args.peft_lora_dropout
-                        )
-                        model = get_peft_model(model, peft_config)
-                        model.load_state_dict(state_dict)
-                        
-                        del _model
-                        del state_dict
-                    else:
-                        model = PeftModel.from_pretrained(model, args.peft_path)
-                else:
-                    peft_config = LoraConfig(
-                        task_type=TaskType.CAUSAL_LM, 
-                        inference_mode=(not args.do_train), 
-                        r=args.peft_lora_r, 
-                        lora_alpha=args.peft_lora_alpha, 
-                        lora_dropout=args.peft_lora_dropout
-                    )
-                    model = get_peft_model(model, peft_config)
-                model.print_trainable_parameters()
-            else:
-                raise NotImplementedError
-        else:
-            if dist.get_rank() == 0:
-                log_rank(' > number of parameters: {:n}'.format(
-                    sum([p.nelement() for p in model.parameters()])))
-        # model = DDP(model)
-        # NOTE: no need for DDP since deepspeed has done
+        
+    
     if args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
     
@@ -200,43 +173,67 @@ def get_model(args, device):
 
 
 def get_teacher_model(args, device):
+    simcse_path = "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
     config = AutoConfig.from_pretrained(args.teacher_model_path)
+    if hasattr(config, "n_embed"):
+            teacher_hidden_size = config.n_embed
+    else:
+            teacher_hidden_size = config.hidden_size
     if args.model_parallel:
         raise NotImplementedError
     else:
         config.is_model_parallel = False
-        try: 
-            model = AutoModelForCausalLM.from_pretrained(
-                args.teacher_model_path, 
-                config=config, 
-                device_map={"": device}, 
-                torch_dtype=torch.float16
-            )
+    
+        try:
+            model = AutoModel.from_pretrained(
+            args.teacher_model_path,
+            config=config,
+            device_map={"": device},
+            torch_dtype=torch.float16,
+        )
         except:
-            model = AutoModelForCausalLM.from_pretrained(
-                args.teacher_model_path, 
-                config=config, 
-                device_map={"": device}, 
-                torch_dtype=torch.float32
-            )
-            model = model.half()
+            model = AutoModel.from_pretrained(
+            args.teacher_model_path,
+            config=config,
+            device_map={"": device},
+            torch_dtype=torch.float32,
+        )
         
-        if args.peft is not None and args.teacher_peft_path is not None:
-            if args.peft == "lora":
-                model = PeftModel.from_pretrained(model, args.teacher_peft_path)
-                model = model.merge_and_unload()
-            else:
-                raise NotImplementedError
-        else:
-            if dist.get_rank() == 0:
-                log_rank(' > number of parameters of the teacher model: {:n}'.format(
-                    sum([p.nelement() for p in model.parameters()])))
+        tokenizer = AutoTokenizer(args.teacher_model_path)
+        # Load and apply PEFT adapters (assuming a separate adapter path)
+        model = PeftModel.from_pretrained(
+            model,
+            args.teacher_peft_path,  # Replace with actual adapter path
+        )
+        model = model.merge_and_unload()  # Merge adapters into the base model
+
+        model = PeftModel.from_pretrained(model, simcse_path)
+        l2v = LLM2Vec(model, tokenizer, pooling_mode="mean", max_length=512)
+        # Thêm lớp phân loại
+        classification_head = torch.nn.Linear(teacher_hidden_size, args.num_labels)
+        
+        # Tạo lớp wrapper cho mô hình phân loại
+        class TeacherModelForClassification(torch.nn.Module):
+            def __init__(self, l2v, classification_head):
+                super().__init__()
+                self.l2v = l2v
+                self.classification_head = classification_head
+            
+            def forward(self, input_ids, attention_mask=None, **kwargs):
+                # Mã hóa văn bản thành vector với LLM2Vec
+                encoded = self.l2v.encode(input_ids=input_ids, attention_mask=attention_mask)
+                # Áp dụng lớp phân loại
+                logits = self.classification_head(encoded)
+                return logits
+        
+        # Khởi tạo mô hình teacher
+        model = TeacherModelForClassification(l2v, classification_head)
 
     model.eval()
     
     return model
 
-
+                
 def get_optimizer_params(args, model: nn.Module):
     # taken from https://github.com/facebookresearch/SpanBERT/blob/0670d8b6a38f6714b85ea7a033f16bd8cc162676/code/run_tacred.py
     param_optimizer = list(model.named_parameters())
@@ -263,13 +260,8 @@ def get_optimizer_params_peft(args, model: nn.Module):
 
 def get_tokenizer(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    if args.model_type in ["gpt2", "opt", "llama", "gptj", "llama2", "mistral", "tinyllama"]:
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-    elif args.model_type=="qwen":
-        tokenizer.pad_token_id = 151646
-        tokenizer.eos_token_id = 151643
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-    
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+
     return tokenizer
 
 
@@ -316,4 +308,3 @@ def get_learning_rate_scheduler(args, optimizer):
         raise ValueError(f"lr_scheduler of type {args.lr_decay_style} is not supported yet.")
 
     return lr_scheduler
-
