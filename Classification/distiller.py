@@ -179,7 +179,7 @@ class Distiller(nn.Module):
                 l2v = LLM2Vec(model, tokenizer, pooling_mode="mean", max_length=512)
 
                 # Classification Head (can be LoRA-enhanced)
-                classification_head = torch.nn.Linear(self.hidden_size, self.args.num_labels)
+                classification_head = nn.Linear(self.hidden_size, self.args.num_labels).to(self.device)
 
                 class TeacherModelForClassification(nn.Module):
                     def __init__(self, l2v, classification_head):
@@ -244,7 +244,7 @@ class Distiller(nn.Module):
         
         l2v = LLM2Vec(model, tokenizer, pooling_mode="mean", max_length=512)
         # Thêm lớp phân loại
-        classification_head = torch.nn.Linear(self.teacher_hidden_size, self.args.num_labels)
+        classification_head = torch.nn.Linear(self.teacher_hidden_size, self.args.num_labels).to(self.device)
         
         # Tạo lớp wrapper cho mô hình phân loại
         class TeacherModelForClassification(nn.Module):
