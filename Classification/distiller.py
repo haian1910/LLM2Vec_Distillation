@@ -156,7 +156,7 @@ class Distiller(nn.Module):
 
 
                 # Apply a new LoRA adapter for fine-tuning
-                if args.do_train:
+                if self.args.do_train:
                     peft_config = LoraConfig(
                         task_type=TaskType.FEATURE_EXTRACTION,
                         inference_mode=(not self.args.do_train),
@@ -189,7 +189,6 @@ class Distiller(nn.Module):
                 # Initialize the teacher model
                 model = TeacherModelForClassification(l2v, classification_head)
 
-                model.print_trainable_parameters()
             else:
                 raise NotImplementedError
         else: #for BERT
