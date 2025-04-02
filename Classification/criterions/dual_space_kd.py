@@ -54,47 +54,48 @@ class DualSpaceKD(VariousDivergence):
         return loss / batch_denom, logging_output
 
     def compute_dual_space_kd_loss(
-        self, outputs, teacher_outputs, output_data, distiller, log
-    ):
-        target = output_data["label"]
-        pad_mask = target.ne(self.padding_id)
+    self, outputs, teacher_outputs, output_data, distiller, log
+):
+        # Target cho classification: shape (batch_size,)
+        target = output_data["label"]  # Không cần pad_mask
         teacher_target = output_data[f"teacher_{distiller.teacher_model_type}_label"]
-        teacher_pad_mask = teacher_target.ne(self.padding_id)
 
-        hiddens = outputs.hidden_states[-1]
-        teacher_hiddens = teacher_outputs.hidden_states[-1]
+        hiddens = outputs.hidden_states[-1]# 
+        teacher_hiddens = teacher_outputs.hidden_states[-1] # 
 
-        # student space
-        t2s_hiddens = distiller.projectors["t2s"](teacher_hiddens)
+        # Student space
+        t2s_hiddens = distiller.projectors["t2s"](teacher_hiddens)  # (batch_size, hidden_size)
         t2s_logits = t2s_hiddens.matmul(
             distiller.student_model.lm_head.weight.detach().transpose(-1, -2)
-        )
-        t2s_ce_loss = self.compute_cross_entropy_loss(t2s_logits, target)[0]
-        
-        t2s_kd_loss = self.dist_func(
-            outputs.logits, t2s_logits.detach(), target, reduction="none"
-        )
-        t2s_kd_loss = (t2s_kd_loss * pad_mask).sum()
+        )  # (batch_size, num_classes)
+        t2s_ce_loss = self.compute_cross_entropy_loss(t2s_logits, target)[0]  # Scalar
 
-        # teacher space
-        s2t_hiddens = distiller.projectors["s2t"](hiddens)
-        s2t_logits = distiller.teacher_model.lm_head(s2t_hiddens)
+        t2s_kd_loss = self.dist_func(
+            outputs.logits, t2s_logits.detach(), target, reduction="sum"
+        )  # Tính tổng loss trên batch
+
+        # Teacher space
+        s2t_hiddens = distiller.projectors["s2t"](hiddens)  # (batch_size, hidden_size)
+        s2t_logits = distiller.teacher_model.lm_head(s2t_hiddens)  # (batch_size, num_classes)
         s2t_kd_loss = self.compute_forward_kl_divergence(
-            s2t_logits, teacher_outputs.logits, teacher_target, reduction="none"
-        )
-        s2t_kd_loss = (s2t_kd_loss * teacher_pad_mask).sum()
-        
+            s2t_logits, teacher_outputs.logits, teacher_target, reduction="sum"
+        )  # Tính tổng loss trên batch
+
+        # Tổng hợp KD loss
         kd_loss = t2s_kd_loss + t2s_ce_loss + s2t_kd_loss
 
-        t2s_acc = (t2s_logits.argmax(-1).eq(target) * pad_mask).sum()
-        s2t_acc = (s2t_logits.argmax(-1).eq(teacher_target) * teacher_pad_mask).sum() * pad_mask.sum() / teacher_pad_mask.sum()
+        # Tính accuracy trên toàn bộ batch
+        t2s_acc = (t2s_logits.argmax(-1) == target).float().sum()  # Tổng số dự đoán đúng
+        s2t_acc = (s2t_logits.argmax(-1) == teacher_target).float().sum()  # Tổng số dự đoán đúng
 
+        # Lưu log
         log["t2s_ce_loss"] = t2s_ce_loss
         log["t2s_kd_loss"] = t2s_kd_loss
         log["s2t_kd_loss"] = s2t_kd_loss
         log["t2s_acc"] = t2s_acc
         log["s2t_acc"] = s2t_acc
         log["kd_loss"] = kd_loss
+
         return kd_loss, log
     
     
