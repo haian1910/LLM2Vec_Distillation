@@ -20,7 +20,6 @@ class DualSpaceKD(VariousDivergence):
         outputs = model(
             input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
-            position_ids=input_data.get("position_ids", None), 
             output_hidden_states=True
         )
         logits = outputs.logits
@@ -32,9 +31,8 @@ class DualSpaceKD(VariousDivergence):
         with torch.no_grad():
             teacher_model.eval()
             teacher_outputs = teacher_model(
-                input_data[f"teacher_{distiller.teacher_model_type}_input_ids"],
-                attention_mask=input_data[f"teacher_{distiller.teacher_model_type}_attention_mask"],
-                position_ids=input_data.get(f"teacher_{distiller.teacher_model_type}_position_ids", None), 
+                input_data["teacher_input_ids"],
+                attention_mask=input_data["teacher_attention_mask"],
                 output_hidden_states=True)
         
         kd_loss, log = self.compute_dual_space_kd_loss(
@@ -60,8 +58,9 @@ class DualSpaceKD(VariousDivergence):
         target = output_data["labels"]  # Không cần pad_mask
         teacher_target = output_data["labels"]
 
-        hiddens = outputs.hidden_states[-1]
-        teacher_hiddens = teacher_outputs.hidden_states[-1]
+        # Lấy hidden state của token [CLS] thay vì toàn bộ chuỗi
+        hiddens = outputs.hidden_states[-1]# (batch_size, hidden_size)
+        teacher_hiddens = teacher_outputs.hidden_states[-1] # (batch_size, hidden_size)
 
         # Student space
         t2s_hiddens = distiller.projectors["t2s"](teacher_hiddens)  # (batch_size, hidden_size)
