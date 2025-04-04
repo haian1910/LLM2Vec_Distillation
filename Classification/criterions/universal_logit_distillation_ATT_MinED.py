@@ -6,7 +6,7 @@ import re
 from .cross_entropy_loss import CrossEntropyLoss
 
 
-class UniversalLogitDistillation(CrossEntropyLoss):
+class ULD_ATT_MINED(CrossEntropyLoss):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
