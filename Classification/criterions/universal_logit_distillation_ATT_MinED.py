@@ -1,4 +1,3 @@
-from huggingface_hub import login
 import editdistance
 from transformers import AutoTokenizer, AutoConfig, AutoModel
 import torch
@@ -11,7 +10,6 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
     def __init__(self, args, padding_id=-100) -> None:
         super().__init__(args, padding_id=padding_id)
         self.kd_rate = args.kd_rate
-        self.k = 3 # số layer mình distill
 
     def forward(
         self, 
@@ -25,14 +23,18 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
         model = distiller.student_model # BERT
         teacher_model = distiller.teacher_model # LLM2VEC
 
+        outputs = model(
+            input_data["input_ids"],
+            attention_mask=input_data["attention_mask"],
+            output_hidden_states=True
+        )
+
         with torch.no_grad():
             teacher_model.eval()
             teacher_outputs = teacher_model(
-                input_ids=input_data[f"teacher_{distiller.teacher_model_type}_input_ids"],
-                attention_mask=input_data[f"teacher_{distiller.teacher_model_type}_attention_mask"],
-                position_ids=input_data.get(f"teacher_{distiller.teacher_model_type}_position_ids", None),
-                output_hidden_states=True
-            )
+                input_data["teacher_input_ids"],
+                attention_mask=input_data["teacher_attention_mask"],
+                output_hidden_states=True)
 
 
         tokenizer_student = distiller.student_tokenizer
@@ -138,89 +140,91 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
             return text
 
         # Hàm tính att_loss cho toàn bộ batch
-        def compute_att_loss(teacher_model, student_model, batches, k=3):
+        def compute_att_loss(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
             device = teacher_model.l2v.model.device
 
-            # Duyệt qua tất cả các batch
-            for batch_texts in batches:
-                print(f"Processing batch with {len(batch_texts)} texts")
-                batch_att_loss = 0.0
-                # Duyệt qua tất cả các text trong batch hiện tại
-                for text in batch_texts: 
-                    text = preprocess_text(text)
-                    
-                    print(f"Processing text: {text}")
-                    # Tokenize văn bản cho teacher và student
-                    input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt').to(device)
-                    input_ids_student = tokenizer_student.encode(text, return_tensors='pt').to(device)
-                    attention_mask_teacher = tokenizer_teacher(text, return_tensors='pt')['attention_mask'].to(device)
-                    attention_mask_student = tokenizer_student(text, return_tensors='pt')['attention_mask'].to(device)
+            # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
+            tokenizer_student = distiller.student_tokenizer
+            tokenizer_teacher = distiller.teacher_tokenizer
 
-                    # Lấy reciprocal_mapping và indices
-                    reciprocal_mapping = align_text_tokens(text)
-                    teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping)
+            # Lấy batch_size từ input_ids
+            batch_size = input_data["input_ids"].shape[0]
 
-                    # Chạy mô hình với output_attentions=True
-                    teacher_outputs = teacher_model.l2v.model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                    student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+            # Hàm decode input_ids thành văn bản
+            def decode_input_ids(tokenizer, input_ids):
+                return tokenizer.decode(input_ids, skip_special_tokens=True)
 
-                    # Lấy attention weights từ outputs
-                    teacher_atts = teacher_outputs.attentions
-                    student_atts = student_outputs.attentions
+            # Duyệt qua từng sample trong batch
+            for i in range(batch_size):
+                # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
+                text = decode_input_ids(tokenizer_student, input_data["input_ids"][i])
+                print(f"Processing text: {text}")
 
-                    # Tính layers_per_block để ánh xạ layer của teacher sang student
-                    teacher_layer_num = len(teacher_atts)
-                    student_layer_num = len(student_atts)
-                    layers_per_block = teacher_layer_num // student_layer_num
+                # Tiền xử lý văn bản
+                text = preprocess_text(text, remove_stopwords=True, remove_punctuation=True,
+                                    lowercase=True, remove_numbers=True)
 
-                    # Chọn các layer của teacher tương ứng
-                    new_teacher_atts = [teacher_atts[i * layers_per_block + layers_per_block - 1] for i in range(student_layer_num)]
+                # Tokenize văn bản cho teacher và student
+                input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt').to(device)
+                input_ids_student = tokenizer_student.encode(text, return_tensors='pt').to(device)
+                attention_mask_teacher = tokenizer_teacher(text, return_tensors='pt')['attention_mask'].to(device)
+                attention_mask_student = tokenizer_student(text, return_tensors='pt')['attention_mask'].to(device)
 
-                    # Lấy k layer cuối
-                    teacher_last_k_layers = new_teacher_atts[-k:]
-                    student_last_k_layers = student_atts[-k:]
-                    # Lặp qua từng layer trong k layer cuối
-                    for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
-                        # Lấy ma trận attention cho n token
-                        teacher_att_for_n_token = teacher_att[0, :, teacher_indices, :][:, :, teacher_indices].mean(dim=0)  # (num_heads, n, n)
-                        student_att_for_n_token = student_att[0, :, student_indices, :][:, :, student_indices].mean(dim=0)   # (num_heads, n, n)
-                        # Xử lý giá trị nhỏ
-                        teacher_att_for_n_token = torch.where(
-                            teacher_att_for_n_token <= -1e2,
-                            torch.zeros_like(teacher_att_for_n_token).to(device),
-                            teacher_att_for_n_token
-                        )
-                        student_att_for_n_token = torch.where(
-                            student_att_for_n_token <= -1e2,
-                            torch.zeros_like(student_att_for_n_token).to(device),
-                            student_att_for_n_token
-                        )
-                        print(teacher_att_for_n_token.shape)
-                        print(student_att_for_n_token.shape)
-                        # Tính MSE và cộng vào batch_att_loss
-                        batch_att_loss += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
+                # Lấy reciprocal_mapping và indices
+                reciprocal_mapping = align_text_tokens(text)
+                teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping)
 
-                # Cộng batch_att_loss vào att_loss_total
-                att_loss_total += batch_att_loss
+                # Chạy mô hình với output_attentions=True
+                teacher_outputs = teacher_model.l2v.model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
+                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+
+                # Lấy attention weights từ outputs
+                teacher_atts = teacher_outputs.attentions
+                student_atts = student_outputs.attentions
+
+                # Tính layers_per_block để ánh xạ layer của teacher sang student
+                teacher_layer_num = len(teacher_atts)
+                student_layer_num = len(student_atts)
+                layers_per_block = teacher_layer_num // student_layer_num
+
+                # Chọn các layer của teacher tương ứng
+                new_teacher_atts = [teacher_atts[i * layers_per_block + layers_per_block - 1] for i in range(student_layer_num)]
+
+                # Lấy k layer cuối
+                teacher_last_k_layers = new_teacher_atts[-k:]
+                student_last_k_layers = student_atts[-k:]
+
+                # Lặp qua từng layer trong k layer cuối
+                for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
+                    # Lấy ma trận attention cho n token
+                    teacher_att_for_n_token = teacher_att[0, :, teacher_indices, :][:, :, teacher_indices].mean(dim=0)  # (num_heads, n, n)
+                    student_att_for_n_token = student_att[0, :, student_indices, :][:, :, student_indices].mean(dim=0)   # (num_heads, n, n)
+                    # Xử lý giá trị nhỏ
+                    teacher_att_for_n_token = torch.where(
+                        teacher_att_for_n_token <= -1e2,
+                        torch.zeros_like(teacher_att_for_n_token).to(device),
+                        teacher_att_for_n_token
+                    )
+                    student_att_for_n_token = torch.where(
+                        student_att_for_n_token <= -1e2,
+                        torch.zeros_like(student_att_for_n_token).to(device),
+                        student_att_for_n_token
+                    )
+                    # Tính MSE và cộng vào att_loss_total
+                    att_loss_total += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
 
             return att_loss_total
-        
 
-        att_loss_total = compute_att_loss(teacher_model, model, batches, 3) # define lại batches 
-        outputs = model(
-            input_ids=input_data["input_ids"],
-            attention_mask=input_data["attention_mask"],
-            position_ids=input_data.get("position_ids", None),
-            output_hidden_states=True
-        )
+        att_loss_total = compute_att_loss(teacher_model, model,input_data, 3) # define lại batches 
+        
 
         logits = outputs.logits
 
         loss_ce = self.compute_cross_entropy_loss(
             logits,
-            output_data["label"],
+            output_data["labels"],
             log=log
         )[0]
 
@@ -232,7 +236,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
         log["loss"] = loss
 
         accuracy = self.compute_token_accuracy(
-            logits, output_data["label"], 
+            logits, output_data["labels"], 
         )
         log["accuracy"] = accuracy
 
@@ -244,8 +248,8 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
     def compute_universal_logit_distillation_loss(
         self, outputs, teacher_outputs, output_data, distiller, log
     ):
-        student_target = output_data["label"]
-        teacher_target = output_data[f"teacher_{distiller.teacher_model_type}_label"]
+        student_target = output_data["labels"]
+        teacher_target = output_data["labels"]
         student_logits = outputs.logits
         teacher_logits = teacher_outputs.logits
         # align the start of the student&teacher sequences
