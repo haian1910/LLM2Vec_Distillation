@@ -37,7 +37,7 @@ class ULD_ATT_MINED(CrossEntropyLoss):
                 output_hidden_states=True)
 
 
-        tokenizer_student = distiller.student_tokenizers
+        tokenizer_student = distiller.student_tokenizer
         tokenizer_teacher = distiller.teacher_tokenizers
 
         # Bản đồ token đặc biệt
@@ -111,7 +111,7 @@ class ULD_ATT_MINED(CrossEntropyLoss):
             device = teacher_model.device
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
-            tokenizer_student = distiller.student_tokenizers
+            tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
             # Lấy batch_size từ input_ids
