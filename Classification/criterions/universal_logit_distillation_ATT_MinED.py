@@ -94,9 +94,49 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
             student_indices = [idx for idx, token_id in enumerate(input_ids_student) if token_id.item() in teacher_token_ids.values()]
             return teacher_indices, student_indices
 
-        def remove_punctuation(text):
+        def preprocess_text(text, remove_stopwords=True, remove_punctuation=True,
+                    lowercase=True, remove_numbers=True):
+
+            text = text.lower()
+
+            # Remove punctuation if specified
+
             # Loại bỏ mọi ký tự không phải chữ cái, số hoặc khoảng trắng
-            return re.sub(r'[^\w\s]', '', text)
+        
+            text = re.sub(r'[^\w\s]', '', text)
+
+            '''# Remove numbers if specified
+            text = re.sub(r'\d+', '', text)
+
+            # Custom list of English stopwords (a common subset)
+            stop_words = [
+                'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while',
+                'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+                'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in',
+                'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
+                'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
+                'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
+                'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
+                'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
+                'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
+                'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
+                'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are',
+                'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does',
+                'did', 'doing', 'would', 'could', 'should', 'ought', 'i\'m', 'you\'re', 'he\'s',
+                'she\'s', 'it\'s', 'we\'re', 'they\'re', 'i\'ve', 'you\'ve', 'we\'ve', 'they\'ve',
+                'i\'d', 'you\'d', 'he\'d', 'she\'d', 'we\'d', 'they\'d', 'i\'ll', 'you\'ll', 'he\'ll',
+                'she\'ll', 'we\'ll', 'they\'ll', 'isn\'t', 'aren\'t', 'wasn\'t', 'weren\'t', 'hasn\'t',
+                'haven\'t', 'hadn\'t', 'doesn\'t', 'don\'t', 'didn\'t', 'won\'t', 'wouldn\'t',
+                'shan\'t', 'shouldn\'t', 'can\'t', 'cannot', 'couldn\'t', 'mustn\'t', 'let\'s',
+                'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
+                'why\'s', 'how\'s', '.'
+            ]
+
+
+            words = [word for word in text.split() if word not in stop_words]
+            text = ' '.join(words)'''
+
+            return text
 
         # Hàm tính att_loss cho toàn bộ batch
         def compute_att_loss(teacher_model, student_model, batches, k):
@@ -110,7 +150,8 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
                 batch_att_loss = 0.0
                 # Duyệt qua tất cả các text trong batch hiện tại
                 for text in batch_texts: 
-                    text = remove_punctuation(text)
+                    text = preprocess_text(text, remove_stopwords=True, remove_punctuation=True,
+                    lowercase=True, remove_numbers=True)
                     
                     print(f"Processing text: {text}")
                     # Tokenize văn bản cho teacher và student
@@ -169,7 +210,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
             return att_loss_total
         
 
-        att_loss_total = compute_att_loss(teacher_model, model, batches, k) # define lại batches 
+        att_loss_total = compute_att_loss(teacher_model, model, batches, 3) # define lại batches 
         outputs = model(
             input_ids=input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
