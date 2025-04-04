@@ -94,8 +94,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
             student_indices = [idx for idx, token_id in enumerate(input_ids_student) if token_id.item() in teacher_token_ids.values()]
             return teacher_indices, student_indices
 
-        def preprocess_text(text, remove_stopwords=True, remove_punctuation=True,
-                    lowercase=True, remove_numbers=True):
+        def preprocess_text(text):
 
             text = text.lower()
 
@@ -150,8 +149,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
                 batch_att_loss = 0.0
                 # Duyệt qua tất cả các text trong batch hiện tại
                 for text in batch_texts: 
-                    text = preprocess_text(text, remove_stopwords=True, remove_punctuation=True,
-                    lowercase=True, remove_numbers=True)
+                    text = preprocess_text(text)
                     
                     print(f"Processing text: {text}")
                     # Tokenize văn bản cho teacher và student
