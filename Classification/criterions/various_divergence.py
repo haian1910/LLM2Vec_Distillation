@@ -244,7 +244,7 @@ class VariousDivergence(CrossEntropyLoss):
         return kld
 
     def compute_js_divergence(
-   ellis: self, 
+    self, 
     logits, 
     teacher_logits, 
     target, 
