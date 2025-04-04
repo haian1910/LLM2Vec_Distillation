@@ -3,8 +3,8 @@ from .cross_entropy_loss import CrossEntropyLoss
 
 
 class VariousDivergence(CrossEntropyLoss):
-    def __init__(self, args, padding_id=-100) -> None:
-        super(VariousDivergence, self).__init__(args, padding_id=padding_id)
+    def __init__(self, args) -> None:
+        super(VariousDivergence, self).__init__(args)
         self.kd_rate = args.kd_rate
         self.kd_temp = args.kd_temperature
         self.tea_temp = args.teacher_temperature
@@ -40,45 +40,39 @@ class VariousDivergence(CrossEntropyLoss):
         outputs = model(
             input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
-            position_ids=input_data.get("position_ids", None), 
             output_hidden_states=True
         )
         logits = outputs.logits
         log = {}
         loss = self.compute_cross_entropy_loss(
-            outputs.logits, output_data["label"], log=log
+            outputs.logits, output_data["labels"], log=log
         )[0]
 
         with torch.no_grad():
             teacher_model.eval()
             teacher_outputs = teacher_model(
-                input_data[f"teacher_{distiller.teacher_model_type}_input_ids"],
-                attention_mask=input_data[f"teacher_{distiller.teacher_model_type}_attention_mask"],
-                position_ids=input_data.get(f"teacher_{distiller.teacher_model_type}_position_ids", None), 
+                input_data["teacher_input_ids"],
+                attention_mask=input_data["teacher_attention_mask"],
                 output_hidden_states=True)
-            teacher_logits = teacher_outputs.logits
+        teacher_logits = teacher_outputs.logits
         
-        # Qwen has different vocab_size for models in different sizes (see https://github.com/QwenLM/Qwen/issues/419)
-        if self.args.model_type == "qwen":
-            logits = logits[..., :151851]
-            teacher_logits = teacher_logits[..., :151851]
         
-        kd_loss = self.dist_func(logits, teacher_logits, output_data["label"])
+        kd_loss = self.dist_func(logits, teacher_logits, output_data["labels"])
         log["kd_loss"] = kd_loss
 
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
 
-        accuracy = self.compute_token_accuracy(logits, output_data["label"])
+        accuracy = self.compute_accuracy(logits, output_data["labels"])
         log["accuracy"] = accuracy
 
         if self.args.report_logits:
             self.record_logits(
                 logits, 
-                output_data["label"], 
+                output_data["labels"], 
                 log, 
                 teacher_logits=teacher_logits, 
-                teacher_target=output_data[f"teacher_{distiller.teacher_model_type}_label"]
+                teacher_target=output_data["labels"]
             )
 
         logging_output = self.record_logging_output(logging_output, batch_denom, log)
