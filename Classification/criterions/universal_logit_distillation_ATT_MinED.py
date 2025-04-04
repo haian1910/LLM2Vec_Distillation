@@ -189,9 +189,7 @@ class ULD_ATT_MINED(CrossEntropyLoss):
 
         loss_ce = self.compute_cross_entropy_loss(
             logits,
-            output_data["labels"],
-            log=log
-        )[0]
+            output_data["labels"])[0]
 
         kd_loss, log = self.compute_universal_logit_distillation_loss(
             outputs, teacher_outputs, output_data, distiller, log
