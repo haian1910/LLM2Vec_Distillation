@@ -128,8 +128,7 @@ class ULD_ATT_MINED(CrossEntropyLoss):
                 print(f"Processing text: {text}")
 
                 # Tiền xử lý văn bản
-                text = preprocess_text(text, remove_stopwords=True, remove_punctuation=True,
-                                    lowercase=True, remove_numbers=True)
+                text = preprocess_text(text)
 
                 # Tokenize văn bản cho teacher và student
                 input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt').to(device)
