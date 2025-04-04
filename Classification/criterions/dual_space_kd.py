@@ -41,7 +41,7 @@ class DualSpaceKD(VariousDivergence):
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
 
-        accuracy = self.compute_token_accuracy(
+        accuracy = self.compute_accuracy(
             logits, output_data["labels"], 
         )
         log["accuracy"] = accuracy
