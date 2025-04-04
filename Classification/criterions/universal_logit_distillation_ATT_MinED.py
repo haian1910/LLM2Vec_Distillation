@@ -11,7 +11,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
     def __init__(self, args, padding_id=-100) -> None:
         super().__init__(args, padding_id=padding_id)
         self.kd_rate = args.kd_rate
-        self.k = args.k # số layer mình distill
+        self.k = 3 # số layer mình distill
 
     def forward(
         self, 
@@ -139,7 +139,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
             return text
 
         # Hàm tính att_loss cho toàn bộ batch
-        def compute_att_loss(teacher_model, student_model, batches, k):
+        def compute_att_loss(teacher_model, student_model, batches, k=3):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
             device = teacher_model.l2v.model.device
