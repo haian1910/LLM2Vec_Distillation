@@ -37,8 +37,8 @@ class UniversalLogitDistillation(CrossEntropyLoss):
                 output_hidden_states=True)
 
 
-        tokenizer_student = distiller.student_tokenizer
-        tokenizer_teacher = distiller.teacher_tokenizer
+        tokenizer_student = distiller.student_tokenizers
+        tokenizer_teacher = distiller.teacher_tokenizers
 
         # Bản đồ token đặc biệt
         TOKENIZER_TO_SPECIAL_TOKEN = {
@@ -111,8 +111,8 @@ class UniversalLogitDistillation(CrossEntropyLoss):
             device = teacher_model.device
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
-            tokenizer_student = distiller.student_tokenizer
-            tokenizer_teacher = distiller.teacher_tokenizer
+            tokenizer_student = distiller.student_tokenizers
+            tokenizer_teacher = distiller.teacher_tokenizers
 
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
