@@ -3,8 +3,8 @@ from .various_divergence import VariousDivergence
 
 
 class DualSpaceKD(VariousDivergence):
-    def __init__(self, args, padding_id=-100) -> None:
-        super().__init__(args, padding_id=padding_id)
+    def __init__(self, args) -> None:
+        super().__init__(args)
 
     def forward(
         self, 
