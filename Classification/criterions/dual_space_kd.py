@@ -26,7 +26,7 @@ class DualSpaceKD(VariousDivergence):
         logits = outputs.logits
         log = {}
         loss = self.compute_cross_entropy_loss(
-            outputs.logits, output_data["label"], log=log
+            outputs.logits, output_data["labels"], log=log
         )[0]
 
         with torch.no_grad():
@@ -44,7 +44,7 @@ class DualSpaceKD(VariousDivergence):
         log["loss"] = loss
 
         accuracy = self.compute_token_accuracy(
-            logits, output_data["label"], 
+            logits, output_data["labels"], 
         )
         log["accuracy"] = accuracy
 
@@ -57,8 +57,8 @@ class DualSpaceKD(VariousDivergence):
     self, outputs, teacher_outputs, output_data, distiller, log
 ):
         # Target cho classification: shape (batch_size,)
-        target = output_data["label"]  # Không cần pad_mask
-        teacher_target = output_data[f"teacher_{distiller.teacher_model_type}_label"]
+        target = output_data["labels"]  # Không cần pad_mask
+        teacher_target = output_data["labels"]
 
         hiddens = outputs.hidden_states[-1]
         teacher_hiddens = teacher_outputs.hidden_states[-1]
