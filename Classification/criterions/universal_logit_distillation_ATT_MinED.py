@@ -6,9 +6,9 @@ import re
 from .cross_entropy_loss import CrossEntropyLoss
 
 
-class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
-    def __init__(self, args, padding_id=-100) -> None:
-        super().__init__(args, padding_id=padding_id)
+class UniversalLogitDistillation(CrossEntropyLoss):
+    def __init__(self, args) -> None:
+        super().__init__(args)
         self.kd_rate = args.kd_rate
 
     def forward(
@@ -99,43 +99,8 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
         def preprocess_text(text):
 
             text = text.lower()
-
-            # Remove punctuation if specified
-
-            # Loại bỏ mọi ký tự không phải chữ cái, số hoặc khoảng trắng
         
             text = re.sub(r'[^\w\s]', '', text)
-
-            '''# Remove numbers if specified
-            text = re.sub(r'\d+', '', text)
-
-            # Custom list of English stopwords (a common subset)
-            stop_words = [
-                'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while',
-                'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
-                'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in',
-                'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
-                'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
-                'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
-                'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
-                'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
-                'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
-                'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
-                'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are',
-                'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does',
-                'did', 'doing', 'would', 'could', 'should', 'ought', 'i\'m', 'you\'re', 'he\'s',
-                'she\'s', 'it\'s', 'we\'re', 'they\'re', 'i\'ve', 'you\'ve', 'we\'ve', 'they\'ve',
-                'i\'d', 'you\'d', 'he\'d', 'she\'d', 'we\'d', 'they\'d', 'i\'ll', 'you\'ll', 'he\'ll',
-                'she\'ll', 'we\'ll', 'they\'ll', 'isn\'t', 'aren\'t', 'wasn\'t', 'weren\'t', 'hasn\'t',
-                'haven\'t', 'hadn\'t', 'doesn\'t', 'don\'t', 'didn\'t', 'won\'t', 'wouldn\'t',
-                'shan\'t', 'shouldn\'t', 'can\'t', 'cannot', 'couldn\'t', 'mustn\'t', 'let\'s',
-                'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
-                'why\'s', 'how\'s', '.'
-            ]
-
-
-            words = [word for word in text.split() if word not in stop_words]
-            text = ' '.join(words)'''
 
             return text
 
@@ -143,7 +108,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
         def compute_att_loss(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
-            device = teacher_model.l2v.model.device
+            device = teacher_model.device
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
@@ -177,7 +142,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping)
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model.l2v.model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
+                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
                 student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
 
                 # Lấy attention weights từ outputs
@@ -221,6 +186,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
         
 
         logits = outputs.logits
+        log = {}
 
         loss_ce = self.compute_cross_entropy_loss(
             logits,
@@ -235,7 +201,7 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
         loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (kd_loss + batch_denom * att_loss_total) # Hàm loss cuối cùng
         log["loss"] = loss
 
-        accuracy = self.compute_token_accuracy(
+        accuracy = self.compute_accuracy(
             logits, output_data["labels"], 
         )
         log["accuracy"] = accuracy
@@ -248,56 +214,36 @@ class UniversalLogitDistillation_ATT_MinED(CrossEntropyLoss):
     def compute_universal_logit_distillation_loss(
         self, outputs, teacher_outputs, output_data, distiller, log
     ):
-        student_target = output_data["labels"]
-        teacher_target = output_data["labels"]
-        student_logits = outputs.logits
-        teacher_logits = teacher_outputs.logits
-        # align the start of the student&teacher sequences
-        for i in range(student_target.shape[0]):
-            stu_start_idx = student_target[i].ne(self.padding_id).nonzero()[0][0]
-            tea_start_idx = teacher_target[i].ne(self.padding_id).nonzero()[0][0]
-            student_target[i] = torch.cat([
-                student_target[i][stu_start_idx:], 
-                student_target[i][:stu_start_idx]], dim=0
-            )
-            student_logits[i] = torch.cat([
-                student_logits[i][stu_start_idx:, :],
-                student_logits[i][:stu_start_idx, :]], dim=0
-            )
-            teacher_target[i] = torch.cat([
-                teacher_target[i][tea_start_idx:], 
-                teacher_target[i][:tea_start_idx]], dim=0
-            )
-            teacher_logits[i] = torch.cat([
-                teacher_logits[i][tea_start_idx:, :],
-                teacher_logits[i][:tea_start_idx, :]], dim=0
-            )
-        
-        student_probs = torch.softmax(student_logits, -1, dtype=torch.float32)
-        teacher_probs = torch.softmax(teacher_logits, -1, dtype=torch.float32)
-        sorted_student_probs = student_probs.sort(-1, descending=True).values
-        sorted_teacher_probs = teacher_probs.sort(-1, descending=True).values
+        student_logits = outputs.logits  # [batch_size, num_classes]
+        teacher_logits = teacher_outputs.logits  # [batch_size, num_classes]
 
-        vocab_size_gap = sorted_student_probs.shape[-1] - sorted_teacher_probs.shape[-1]
-        bsz, slen = sorted_student_probs.shape[0], sorted_student_probs.shape[1]
+        # Handle potential mismatch in number of classes (vocab size)
+        vocab_size_gap = student_logits.shape[-1] - teacher_logits.shape[-1]
         if vocab_size_gap > 0:
-            sorted_teacher_probs = torch.cat([
-                sorted_teacher_probs, 
-                torch.zeros(bsz, slen, vocab_size_gap).to(teacher_probs)], 
+            # Pad teacher logits with zeros if student has more classes
+            teacher_logits = torch.cat(
+                [teacher_logits, torch.zeros_like(student_logits[:, :vocab_size_gap])], 
                 dim=-1
             )
         elif vocab_size_gap < 0:
-            sorted_student_probs = torch.cat([
-                sorted_student_probs, 
-                torch.zeros(bsz, slen, -vocab_size_gap).to(student_probs)], 
+            # Pad student logits with zeros if teacher has more classes
+            student_logits = torch.cat(
+                [student_logits, torch.zeros_like(teacher_logits[:, :(-vocab_size_gap)])], 
                 dim=-1
             )
+
+        # Compute softened probabilities
+        student_probs = torch.softmax(student_logits, dim=-1, dtype=torch.float32)
+        teacher_probs = torch.softmax(teacher_logits, dim=-1, dtype=torch.float32)
+
+        # Universal Logit Distillation loss: absolute difference between sorted probabilities
+        sorted_student_probs = student_probs.sort(dim=-1, descending=True).values
+        sorted_teacher_probs = teacher_probs.sort(dim=-1, descending=True).values
         
-        uld_loss = (sorted_student_probs - sorted_teacher_probs).abs().sum(-1)
-        pad_mask = student_target.ne(self.padding_id) & teacher_target.ne(self.padding_id)
-        uld_loss = (uld_loss * pad_mask).sum()
+        # Compute loss as mean absolute difference across the batch
+        uld_loss = (sorted_student_probs - sorted_teacher_probs).abs().mean()
         log["uld_loss"] = uld_loss
+        
         return uld_loss, log
-    
 
 
