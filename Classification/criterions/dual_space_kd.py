@@ -60,8 +60,8 @@ class DualSpaceKD(VariousDivergence):
         target = output_data["label"]  # Không cần pad_mask
         teacher_target = output_data[f"teacher_{distiller.teacher_model_type}_label"]
 
-        hiddens = outputs.hidden_states[-1]# 
-        teacher_hiddens = teacher_outputs.hidden_states[-1] # 
+        hiddens = outputs.hidden_states[-1]
+        teacher_hiddens = teacher_outputs.hidden_states[-1]
 
         # Student space
         t2s_hiddens = distiller.projectors["t2s"](teacher_hiddens)  # (batch_size, hidden_size)
