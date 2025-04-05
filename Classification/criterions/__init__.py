@@ -8,6 +8,8 @@ from .uld_att_mined import ULD_ATT_MINED
 from .uld_att_mined_cka import ULD_ATT_MINED_CKA
 from .dskd_att_mined import DSKD_ATT_MINED
 from .dskd_att_mined_cka import DSKD_ATT_MINED_CKA
+from .dskd_cma_att_mined import DSKD_CMA_ATT_MINED
+from .dskd_cma_att_mined_cka import DSKD_CMA_ATT_MINED_CKA
 
 
 criterion_list = {
@@ -20,7 +22,9 @@ criterion_list = {
     "uld_att_mined": ULD_ATT_MINED,
     "uld_att_mined_cka": ULD_ATT_MINED_CKA,
     "dskd_att_mined": DSKD_ATT_MINED,
-    "dskd_att_mined_cka": DSKD_ATT_MINED_CKA  
+    "dskd_att_mined_cka": DSKD_ATT_MINED_CKA,
+    "dskd_cma_att_mined": DSKD_CMA_ATT_MINED,
+    "dskd_cma_att_mined_cka": DSKD_CMA_ATT_MINED_CKA
 }
 
 def build_criterion(args):
