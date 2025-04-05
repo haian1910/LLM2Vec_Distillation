@@ -60,7 +60,8 @@ class Distiller(nn.Module):
     
     def load_tokenizer(self, path):
         tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-        tokenizer.pad_token_id = tokenizer.eos_token_id
+        if tokenizer.pad_token_id is None:
+          tokenizer.pad_token_id = tokenizer.eos_token_id
         
         return tokenizer
     def set_and_load_existing_projectors(self):
@@ -162,7 +163,6 @@ class Distiller(nn.Module):
                 )
                 model = model.merge_and_unload()  # This can take several minutes on cpu
 
-                # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
                 model = PeftModel.from_pretrained(
                     model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
                 )
