@@ -39,9 +39,6 @@ class DSKD_CMA_ATT_MINED_CKA(VariousDivergence):
         }
         
         def preprocess_text(text):
-            text = text.lower()
-        
-            text = re.sub(r'[^\w\s]', '', text)
 
             # Remove numbers if specified
             text = re.sub(r'\d+', '', text)
@@ -162,11 +159,13 @@ class DSKD_CMA_ATT_MINED_CKA(VariousDivergence):
 
             # Tokenize văn bản
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+            inputs = {key: value.to(teacher_model.device) for key, value in inputs.items()}
 
             # Lấy output và attention weights
             with torch.no_grad():
                 outputs = teacher_model(**inputs,
-                output_hidden_states=True)
+                output_hidden_states=True,
+                output_attentions=True)
 
             # Lấy attention từ lớp cuối cùng: [num_heads, seq_len, seq_len]
             last_layer_attention = outputs.attentions[-1].squeeze(0)  # loại bỏ batch dimension
@@ -175,10 +174,10 @@ class DSKD_CMA_ATT_MINED_CKA(VariousDivergence):
             avg_attention = last_layer_attention.mean(dim=0)
 
             # Tính tổng attention mà mỗi token nhận được
-            token_importance = avg_attention.sum(dim=0).cpu().numpy()
+            token_importance = avg_attention.sum(dim=0).to(torch.float32).cpu().numpy()
 
             # Lấy danh sách các token gốc
-            tokens = tokenizer.convert_ids_to_tokens(inputs.input_ids[0])
+            tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
 
             # Ghép token với importance
             token_importance_pairs = list(zip(tokens, token_importance))
@@ -245,6 +244,9 @@ class DSKD_CMA_ATT_MINED_CKA(VariousDivergence):
             for i in range(batch_size):
                 # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
                 text = decode_input_ids(tokenizer_student, input_data["input_ids"][i])
+                text = text.lower()
+        
+                text = re.sub(r'[^\w\s]', '', text)
 
                 input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt').to(device)
                 input_ids_student = tokenizer_student.encode(text, return_tensors='pt').to(device)
