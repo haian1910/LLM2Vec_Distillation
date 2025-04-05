@@ -39,9 +39,6 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
         }
         
         def preprocess_text(text):
-            text = text.lower()
-        
-            text = re.sub(r'[^\w\s]', '', text)
 
             # Remove numbers if specified
             text = re.sub(r'\d+', '', text)
@@ -162,11 +159,13 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
 
             # Tokenize văn bản
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+            inputs = {key: value.to(teacher_model.device) for key, value in inputs.items()}
 
             # Lấy output và attention weights
             with torch.no_grad():
                 outputs = teacher_model(**inputs,
-                output_hidden_states=True)
+                output_hidden_states=True,
+                output_attentions=True)
 
             # Lấy attention từ lớp cuối cùng: [num_heads, seq_len, seq_len]
             last_layer_attention = outputs.attentions[-1].squeeze(0)  # loại bỏ batch dimension
@@ -175,10 +174,10 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
             avg_attention = last_layer_attention.mean(dim=0)
 
             # Tính tổng attention mà mỗi token nhận được
-            token_importance = avg_attention.sum(dim=0).cpu().numpy()
+            token_importance = avg_attention.sum(dim=0).to(torch.float32).cpu().numpy()
 
             # Lấy danh sách các token gốc
-            tokens = tokenizer.convert_ids_to_tokens(inputs.input_ids[0])
+            tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
 
             # Ghép token với importance
             token_importance_pairs = list(zip(tokens, token_importance))
@@ -190,10 +189,6 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
 
         # Hàm kết hợp reciprocal mapping và lọc ra top k token dựa trên attention
         def get_top_k_reciprocal_mapping(text):
-            # Lấy ánh xạ song phương giữa teacher và student
-            text = text.lower()
-        
-            text = re.sub(r'[^\w\s]', '', text)
             reciprocal_mapping = align_text_tokens(text)
             n = len(reciprocal_mapping)
             
@@ -241,10 +236,27 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
             def decode_input_ids(tokenizer, input_ids):
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
+            def compute_att_loss_2(teacher_model, student_model, input_data, k):
+            att_loss_total = 0.0
+            device = teacher_model.device
+            # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
+            tokenizer_student = distiller.student_tokenizer
+            tokenizer_teacher = distiller.teacher_tokenizers
+
+            # Lấy batch_size từ input_ids
+            batch_size = input_data["input_ids"].shape[0]
+
+            # Hàm decode input_ids thành văn bản
+            def decode_input_ids(tokenizer, input_ids):
+                return tokenizer.decode(input_ids, skip_special_tokens=True)
+
             # Duyệt qua từng sample trong batch
             for i in range(batch_size):
                 # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
                 text = decode_input_ids(tokenizer_student, input_data["input_ids"][i])
+                text = text.lower()
+        
+                text = re.sub(r'[^\w\s]', '', text)
 
                 input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt').to(device)
                 input_ids_student = tokenizer_student.encode(text, return_tensors='pt').to(device)
@@ -315,7 +327,6 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
                     att_loss_total  += cka_loss   
 
             return att_loss_total
-    
         att_loss_total = compute_att_loss_2(teacher_model, model, input_data, 3) # define lại batches
         
         # Cross-entropy loss with ground-truth labels
