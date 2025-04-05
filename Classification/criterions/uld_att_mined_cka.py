@@ -164,6 +164,7 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
 
             # Tokenize văn bản
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+            inputs = {key: value.to(teacher_model.device) for key, value in inputs.items()}
 
             # Lấy output và attention weights
             with torch.no_grad():
