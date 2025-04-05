@@ -1,11 +1,10 @@
-import math
 import torch
 from .various_divergence import VariousDivergence
 
-
 class DualSpaceKDWithCMA(VariousDivergence):
-    def __init__(self, args, padding_id=-100) -> None:
-        super().__init__(args, padding_id=padding_id)
+    def __init__(self, args) -> None:
+        super().__init__(args)
+        self.kd_rate = args.kd_rate  # Ensure kd_rate is initialized
 
     def forward(
         self, 
@@ -18,144 +17,138 @@ class DualSpaceKDWithCMA(VariousDivergence):
         model = distiller.student_model
         teacher_model = distiller.teacher_model
         self.distiller = distiller
+        
         outputs = model(
             input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
-            position_ids=input_data.get("position_ids", None), 
             output_hidden_states=True
         )
         logits = outputs.logits
         log = {}
-        loss = self.compute_cross_entropy_loss(
-            outputs.logits, output_data["label"], log=log
-        )[0]
-
+        
+        # Cross-entropy loss with ground-truth labels
+        loss = self.compute_cross_entropy_loss(outputs.logits, output_data["labels"])[0]
+        
         with torch.no_grad():
             teacher_model.eval()
             teacher_outputs = teacher_model(
-                input_data[f"teacher_{distiller.teacher_model_type}_input_ids"],
-                attention_mask=input_data[f"teacher_{distiller.teacher_model_type}_attention_mask"],
-                position_ids=input_data.get(f"teacher_{distiller.teacher_model_type}_position_ids", None), 
-                output_hidden_states=True)
+                input_data["teacher_input_ids"],
+                attention_mask=input_data["teacher_attention_mask"],
+                output_hidden_states=True
+            )
         
+        # Compute dual-space KD loss with CMA
         kd_loss, log = self.compute_dual_space_kd_loss_with_cma(
             outputs, teacher_outputs, input_data, output_data, distiller, log
         )
+        
+        # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
 
-        accuracy = self.compute_token_accuracy(
-            logits, output_data["label"], 
-        )
+        # Compute accuracy
+        accuracy = self.compute_accuracy(logits, output_data["labels"])
         log["accuracy"] = accuracy
 
-        logging_output = self.record_logging_output(
-            logging_output, batch_denom, log
-        )
+        logging_output = self.record_logging_output(logging_output, batch_denom, log)
         return loss / batch_denom, logging_output
-
-def compute_dual_space_kd_loss_with_cma(
+    
+    def compute_dual_space_kd_loss_with_cma(
         self, outputs, teacher_outputs, input_data, output_data, distiller, log
     ):
-        target = output_data["label"]
-        teacher_target = output_data[f"teacher_{distiller.teacher_model_type}_label"]
+        # Target for classification: shape [batch_size]
+        target = output_data["labels"]
         
-        hiddens = outputs.hidden_states[-1]
-        teacher_hiddens = teacher_outputs.hidden_states[-1]
+        # For BERT-like models: use [CLS] token (index 0); adjust if needed for other architectures
+        hiddens = outputs.hidden_states[-1][:, 0, :]
+        teacher_hiddens = teacher_outputs.hidden_states[-1][:, 0, :]
 
-        if hasattr(distiller.student_model, "model") \
-            and hasattr(distiller.student_model.model, "embed_tokens"):
-            stu_embed_tokens = distiller.student_model.model.embed_tokens
-        elif hasattr(distiller.student_model, "model") \
-            and hasattr(distiller.student_model.model, "model") \
-            and hasattr(distiller.student_model.model.model, "embed_tokens"):
-            stu_embed_tokens = distiller.student_model.model.model.embed_tokens
-        elif hasattr(distiller.student_model, "transformer") \
-            and hasattr(distiller.student_model.transformer, "wte"):
-            stu_embed_tokens = distiller.student_model.transformer.wte
+        # Embedding extraction for student and teacher
+        if hasattr(distiller.student_model, "get_input_embeddings"):
+            stu_embed_tokens = distiller.student_model.get_input_embeddings()  # Works for BERT, LLaMA, etc.
+        elif hasattr(distiller.student_model, "bert") and hasattr(distiller.student_model.bert, "embeddings"):
+            stu_embed_tokens = distiller.student_model.bert.embeddings.word_embeddings  # BERT-specific
+        elif hasattr(distiller.student_model, "model") and hasattr(distiller.student_model.model, "embed_tokens"):
+            stu_embed_tokens = distiller.student_model.model.embed_tokens  # LLaMA-like
+        elif hasattr(distiller.student_model, "transformer") and hasattr(distiller.student_model.transformer, "wte"):
+            stu_embed_tokens = distiller.student_model.transformer.wte  # GPT-like
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Unsupported student model architecture for embedding extraction")
 
-        if hasattr(distiller.teacher_model, "model") \
-            and hasattr(distiller.teacher_model.model, "embed_tokens"):
-            tea_embed_tokens = distiller.teacher_model.model.embed_tokens
-        elif hasattr(distiller.teacher_model, "model") \
-            and hasattr(distiller.teacher_model.model, "model") \
-            and hasattr(distiller.teacher_model.model.model, "embed_tokens"):
-            tea_embed_tokens = distiller.teacher_model.model.model.embed_tokens
-        elif hasattr(distiller.teacher_model, "transformer") \
-            and hasattr(distiller.teacher_model.model, "wte"):
-            tea_embed_tokens = distiller.teacher_model.transformer.wte
+        # Embedding extraction for teacher (LLaMA or similar)
+        teacher_model = distiller.teacher_model
+        if hasattr(teacher_model, "get_input_embeddings"):
+            tea_embed_tokens = teacher_model.get_input_embeddings()  # Universal method, should work for LLaMA
+        elif hasattr(teacher_model, "model") and hasattr(teacher_model.model, "embed_tokens"):
+            tea_embed_tokens = teacher_model.model.embed_tokens  # LLaMA-specific
+        elif hasattr(teacher_model, "bert") and hasattr(teacher_model.bert, "embeddings"):
+            tea_embed_tokens = teacher_model.bert.embeddings.word_embeddings  # BERT-specific
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Unsupported teacher model architecture for embedding extraction")
 
-        # Sử dụng trực tiếp target và input_ids
-        formal_target = target
-        formal_input = input_data["input_ids"]
-        stu_input_embeds = stu_embed_tokens(formal_input).detach()
-        stu_target_embeds = stu_embed_tokens(formal_target).detach()
+        # Use input_ids as context for CMA (no padding_id needed for classification)
+        stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).detach()  # [CLS] token embedding
+        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).detach()  # [CLS] token embedding
 
-        formal_teacher_target = teacher_target
-        formal_teacher_input = input_data[f"teacher_{distiller.teacher_model_type}_input_ids"]
-        tea_input_embeds = tea_embed_tokens(formal_teacher_input).detach()
-        tea_target_embeds = tea_embed_tokens(formal_teacher_target).detach()
-
-        stu_index_embeds = torch.cat([stu_input_embeds, stu_target_embeds], -1)
-        tea_index_embeds = torch.cat([tea_input_embeds, tea_target_embeds], -1)
-
-        norm_tea_index_embeds = tea_index_embeds / tea_index_embeds.std()
-        norm_tea_target_embeds = tea_target_embeds / tea_target_embeds.std()
+        # Normalize teacher embeddings
+        norm_tea_input_embeds = tea_input_embeds / tea_input_embeds.std()
         norm_teacher_hiddens = teacher_hiddens / teacher_hiddens.std()
 
-        stu_q_hiddens = distiller.projectors["query"](stu_index_embeds).float()
-        tea_k_hiddens = norm_tea_index_embeds.float()
+        # CMA projections
+        stu_q_hiddens = distiller.projectors["query"](stu_input_embeds).float()
+        tea_k_hiddens = norm_tea_input_embeds.float()
 
         stu_v_hiddens = distiller.projectors["s2t"](hiddens).float()
-        tea_v_hiddens = distiller.projectors["t2s"](
-            norm_teacher_hiddens + norm_tea_target_embeds
-        ).float()
-        
-        # Tính align mà không cần mask
+        tea_v_hiddens = distiller.projectors["t2s"](norm_teacher_hiddens).float()
+
+        # Alignment computation
         align = stu_q_hiddens.matmul(tea_k_hiddens.transpose(-1, -2))
-        align = align / math.sqrt(2 * teacher_hiddens.shape[-1])
+        align = align / (hiddens.shape[-1] ** 0.5)  # Scale by sqrt of hidden size
 
-        t2s_weight = torch.softmax(align, -1)        
+        # Teacher-to-Student (t2s) projection
+        t2s_weight = torch.softmax(align, -1)
         t2s_hiddens = t2s_weight.matmul(tea_v_hiddens).to(hiddens)
-        t2s_logits = t2s_hiddens.matmul(
-            distiller.student_model.lm_head.weight.detach().transpose(-1, -2)
-        )
-        t2s_ce_loss = self.compute_cross_entropy_loss(t2s_logits, target)[0]
-        t2s_acc_mask = t2s_logits.argmax(-1).eq(target)
-        t2s_acc = t2s_acc_mask.sum()
-        max_probs = t2s_logits.softmax(-1).max(-1)[0].sum()
-        log["t2s_ce_loss"] = t2s_ce_loss
-        log["t2s_acc"] = t2s_acc
-        log["max_t2s_prob"] = max_probs
-        
-        if not self.args.only_save_projector:  # skip if only train projectors
-            t2s_kd_loss = self.dist_func(
-                outputs.logits, t2s_logits.detach(), target, reduction="none", use_tea_temp=True
-            )
-            t2s_kd_loss = (t2s_kd_loss * t2s_acc_mask).sum()
 
-            s2t_weight = torch.softmax(align.transpose(-1, -2), -1)
-            s2t_hiddens = s2t_weight.matmul(stu_v_hiddens).to(hiddens)
-            s2t_logits = s2t_hiddens.matmul(
-                distiller.teacher_model.lm_head.weight.detach().transpose(-1, -2)
-            )
-
-            s2t_kd_loss = self.compute_forward_kl_divergence(
-                s2t_logits, teacher_outputs.logits, teacher_target, reduction="none"
-            )
-            s2t_kd_loss = s2t_kd_loss.sum()
-            s2t_acc = s2t_logits.argmax(-1).eq(teacher_target).sum()
-
-            kd_loss = t2s_ce_loss + t2s_kd_loss + s2t_kd_loss
-            log["t2s_kd_loss"] = t2s_kd_loss
-            log["s2t_kd_loss"] = s2t_kd_loss
-            log["s2t_acc"] = s2t_acc
+        # Use appropriate classification head for student
+        if hasattr(distiller.student_model, "classifier"):
+            t2s_logits = distiller.student_model.classifier(t2s_hiddens)
+        elif hasattr(distiller.student_model, "score"):
+            t2s_logits = distiller.student_model.score(t2s_hiddens)
         else:
-            kd_loss = t2s_ce_loss
+            raise AttributeError("Student model has neither 'classifier' nor 'score' attribute")
 
+        # Compute t2s losses
+        t2s_ce_loss = self.compute_cross_entropy_loss(t2s_logits, target)[0]
+        t2s_kd_loss = self.dist_func(outputs.logits, t2s_logits.detach(), target, reduction="mean")
+
+        # Student-to-Teacher (s2t) projection
+        s2t_weight = torch.softmax(align.transpose(-1, -2), -1)
+        s2t_hiddens = s2t_weight.matmul(stu_v_hiddens).to(hiddens)
+
+        # Use appropriate classification head for teacher
+        if hasattr(distiller.teacher_model, "classifier"):
+            s2t_logits = distiller.teacher_model.classifier(s2t_hiddens)
+        elif hasattr(distiller.teacher_model, "score"):
+            s2t_logits = distiller.teacher_model.score(s2t_hiddens)
+        else:
+            raise AttributeError("Teacher model has neither 'classifier' nor 'score' attribute")
+
+        # Compute s2t loss
+        s2t_kd_loss = self.compute_forward_kl_divergence(s2t_logits, teacher_outputs.logits, target, reduction="mean")
+
+        # Combine KD losses
+        kd_loss = t2s_ce_loss + t2s_kd_loss + s2t_kd_loss
+
+        # Compute accuracies
+        t2s_acc = (t2s_logits.argmax(-1) == target).float().mean()
+        s2t_acc = (s2t_logits.argmax(-1) == target).float().mean()
+
+        # Logging
+        log["t2s_ce_loss"] = t2s_ce_loss
+        log["t2s_kd_loss"] = t2s_kd_loss
+        log["s2t_kd_loss"] = s2t_kd_loss
+        log["t2s_acc"] = t2s_acc
+        log["s2t_acc"] = s2t_acc
         log["kd_loss"] = kd_loss
+
         return kd_loss, log
