@@ -41,9 +41,6 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
         }
         
         def preprocess_text(text):
-            text = text.lower()
-        
-            text = re.sub(r'[^\w\s]', '', text)
 
             # Remove numbers if specified
             text = re.sub(r'\d+', '', text)
@@ -169,7 +166,8 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
             # Lấy output và attention weights
             with torch.no_grad():
                 outputs = teacher_model(**inputs,
-                output_hidden_states=True)
+                output_hidden_states=True,
+                output_attentions=True)
 
             # Lấy attention từ lớp cuối cùng: [num_heads, seq_len, seq_len]
             last_layer_attention = outputs.attentions[-1].squeeze(0)  # loại bỏ batch dimension
@@ -178,10 +176,10 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
             avg_attention = last_layer_attention.mean(dim=0)
 
             # Tính tổng attention mà mỗi token nhận được
-            token_importance = avg_attention.sum(dim=0).cpu().numpy()
+            token_importance = avg_attention.sum(dim=0).to(torch.float32).cpu().numpy()
 
             # Lấy danh sách các token gốc
-            tokens = tokenizer.convert_ids_to_tokens(inputs.input_ids[0])
+            tokens = tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
 
             # Ghép token với importance
             token_importance_pairs = list(zip(tokens, token_importance))
@@ -194,9 +192,6 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
         # Hàm kết hợp reciprocal mapping và lọc ra top k token dựa trên attention
         def get_top_k_reciprocal_mapping(text):
             # Lấy ánh xạ song phương giữa teacher và student
-            text = text.lower()
-        
-            text = re.sub(r'[^\w\s]', '', text)
             reciprocal_mapping = align_text_tokens(text)
             n = len(reciprocal_mapping)
             
@@ -248,6 +243,9 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
             for i in range(batch_size):
                 # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
                 text = decode_input_ids(tokenizer_student, input_data["input_ids"][i])
+                text = text.lower()
+        
+                text = re.sub(r'[^\w\s]', '', text)
 
                 input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt').to(device)
                 input_ids_student = tokenizer_student.encode(text, return_tensors='pt').to(device)
@@ -332,7 +330,7 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
             logits,
             output_data["labels"],
         )[0]
-
+        log = {}
         kd_loss, log = self.compute_universal_logit_distillation_loss(
             outputs, teacher_outputs, output_data, distiller, log
         )
@@ -351,7 +349,7 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
         return loss / batch_denom, logging_output
     
     def compute_universal_logit_distillation_loss(
-        self, outputs, teacher_outputs, output_data, distiller, log
+        self, outputs, teacher_outputs, output_data, distiller, log=None
     ):
         student_logits = outputs.logits  # [batch_size, num_classes]
         teacher_logits = teacher_outputs.logits  # [batch_size, num_classes]
