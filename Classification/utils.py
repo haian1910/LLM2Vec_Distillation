@@ -12,7 +12,7 @@ from peft import get_peft_model, LoraConfig, TaskType, PeftModel
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim import AdamW
 from torch.nn.parallel import DistributedDataParallel as DDP
-from llm2vec import LLM2Vec
+
 
 from transformers import (
     AutoModelForCausalLM,
