@@ -90,10 +90,29 @@ class ULD_ATT_MINED(CrossEntropyLoss):
         def get_indices_from_mapping(text, reciprocal_mapping):
             input_ids_teacher = tokenizer_teacher.encode(text, return_tensors='pt')[0]
             input_ids_student = tokenizer_student.encode(text, return_tensors='pt')[0]
-            teacher_token_ids = {tokenizer_teacher.convert_tokens_to_ids(t): tokenizer_student.convert_tokens_to_ids(s)
-                                for t, s in reciprocal_mapping.items()}
-            teacher_indices = [idx for idx, token_id in enumerate(input_ids_teacher) if token_id.item() in teacher_token_ids]
-            student_indices = [idx for idx, token_id in enumerate(input_ids_student) if token_id.item() in teacher_token_ids.values()]
+            
+            # Tạo tập hợp các token_id duy nhất từ reciprocal_mapping
+            teacher_token_ids = {tokenizer_teacher.convert_tokens_to_ids(t) for t in reciprocal_mapping.keys()}
+            student_token_ids = {tokenizer_student.convert_tokens_to_ids(s) for s in reciprocal_mapping.values()}
+            
+            # Chọn chỉ số đầu tiên cho mỗi token_id trong teacher
+            teacher_indices = []
+            seen_teacher = set()  # Theo dõi các token_id đã xử lý
+            for idx, token_id in enumerate(input_ids_teacher):
+                tid = token_id.item()
+                if tid in teacher_token_ids and tid not in seen_teacher:
+                    teacher_indices.append(idx)
+                    seen_teacher.add(tid)
+            
+            # Chọn chỉ số đầu tiên cho mỗi token_id trong student
+            student_indices = []
+            seen_student = set()  # Theo dõi các token_id đã xử lý
+            for idx, token_id in enumerate(input_ids_student):
+                tid = token_id.item()
+                if tid in student_token_ids and tid not in seen_student:
+                    student_indices.append(idx)
+                    seen_student.add(tid)
+    
             return teacher_indices, student_indices
 
         def preprocess_text(text):
