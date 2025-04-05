@@ -23,18 +23,6 @@ class DistillDataset(Dataset):
         self.teacher_tokenizer = teacher_tokenizer
         self.max_length = args.max_length
 
-        # Ensure pad_token_id is set for student_tokenizer
-        if self.student_tokenizer.pad_token_id is None:
-            log_rank(f"No pad_token_id found in student_tokenizer for {split}. Setting to eos_token.")
-            self.student_tokenizer.pad_token = self.student_tokenizer.eos_token
-            self.student_tokenizer.pad_token_id = self.student_tokenizer.eos_token_id
-
-        # Ensure pad_token_id is set for teacher_tokenizer if provided
-        if self.teacher_tokenizer and self.teacher_tokenizer.pad_token_id is None:
-            log_rank(f"No pad_token_id found in teacher_tokenizer for {split}. Setting to eos_token.")
-            self.teacher_tokenizer.pad_token = self.teacher_tokenizer.eos_token
-            self.teacher_tokenizer.pad_token_id = self.teacher_tokenizer.eos_token_id
-
         self.dataset = self._load_and_process_data()
 
     def __len__(self):
