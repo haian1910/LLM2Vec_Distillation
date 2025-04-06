@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0)
+GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -16,7 +16,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 
 # model
 BASE_PATH=/content/DSKD
-CKPT_NAME="LLM2Vec_2"
+CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
 DATA_DIR="${BASE_PATH}/data/ag_news/"
@@ -24,11 +24,11 @@ NUM_LABELS=4
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=1
+BATCH_SIZE=4
 LR=0.001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=8
-EPOCH=1
+EPOCH=2
 LORA_RANK=4
 LORA_ALPHA=8
 LORA_DROPOUT=0.1
