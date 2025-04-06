@@ -127,7 +127,7 @@ class Distiller(nn.Module):
                 except:
                     log_rank("Not compatible for projector '{}'".format(key))
                     continue
-    
+
     def load_student_model(self):
         log_rank("Loading student model...")
         config = AutoConfig.from_pretrained(self.args.model_path, trust_remote_code=True)
@@ -152,8 +152,7 @@ class Distiller(nn.Module):
 
         if self.args.peft is not None: #for LLM2Vec
             if self.args.peft == "lora":
-                config.num_labels = self.args.num_labels
-                model = AutoModelForSequenceClassification.from_pretrained(
+                model = AutoModel.from_pretrained(
                     self.args.model_path,
                     config=config,
                     device_map=None,
@@ -162,18 +161,18 @@ class Distiller(nn.Module):
                 )
                 model = PeftModel.from_pretrained(
                     model,
-                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+                    self.args.model_path
                 )
                 model = model.merge_and_unload()  # This can take several minutes on cpu
 
                 model = PeftModel.from_pretrained(
-                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+                    model, f"{self.args.model_path}-unsup-simcse"
                 )
 
                 # Apply new LoRA adapter for fine-tuning
                 if self.args.do_train:
                     peft_config = LoraConfig(
-                        task_type=TaskType.SEQ_CLS,  # Use SEQ_CLS instead of FEATURE_EXTRACTION
+                        task_type=TaskType.SEQ_CLS,
                         inference_mode=(not self.args.do_train),
                         r=self.args.peft_lora_r,
                         lora_alpha=self.args.peft_lora_alpha,
@@ -184,8 +183,7 @@ class Distiller(nn.Module):
             else:
                 raise NotImplementedError
         else: #for BERT
-            config.num_labels = self.args.num_labels
-            model = AutoModelForSequenceClassification.from_pretrained(
+            model = AutoModel.from_pretrained(
                 self.args.model_path, 
                 config=config, 
                 device_map=None, 
@@ -195,6 +193,7 @@ class Distiller(nn.Module):
                 sum([p.nelement() for p in model.parameters()])
             ))
 
+        model = NLIClassifier(model, num_classes=self.args.num_labels)
 
         if self.args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
@@ -226,13 +225,13 @@ class Distiller(nn.Module):
         )
         teacher_model = PeftModel.from_pretrained(
             model,
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+            self.args.teacher_model_path
         )
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
         # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
         teacher_model = PeftModel.from_pretrained(
-            teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+            teacher_model, f"{self.args.teacher_model_path}-unsup-simcse"
         )
       
 
@@ -270,3 +269,28 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
+class NLIClassifier(nn.Module):
+    def __init__(self, base_model, num_classes=3):
+        super().__init__()
+        self.base_model = base_model
+        hidden_size = base_model.config.hidden_size
+        self.classifier = nn.Linear(2 * hidden_size, num_classes)
+
+    def forward(self, premise_input_ids, premise_attention_mask, hypothesis_input_ids, hypothesis_attention_mask):
+        premise_outputs = self.base_model(input_ids=premise_input_ids, attention_mask=premise_attention_mask)
+        premise_hidden = premise_outputs.last_hidden_state
+        premise_mask = premise_attention_mask.unsqueeze(-1).expand(premise_hidden.size())
+        premise_sum = (premise_hidden * premise_mask).sum(dim=1)
+        premise_count = premise_mask.sum(dim=1)
+        premise_emb = premise_sum / premise_count  # Mean pooling
+
+        hypothesis_outputs = self.base_model(input_ids=hypothesis_input_ids, attention_mask=hypothesis_attention_mask)
+        hypothesis_hidden = hypothesis_outputs.last_hidden_state
+        hypothesis_mask = hypothesis_attention_mask.unsqueeze(-1).expand(hypothesis_hidden.size())
+        hypothesis_sum = (hypothesis_hidden * hypothesis_mask).sum(dim=1)
+        hypothesis_count = hypothesis_mask.sum(dim=1)
+        hypothesis_emb = hypothesis_sum / hypothesis_count  # Mean pooling
+
+        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1).to(torch.float32)
+        logits = self.classifier(combined_emb)
+        return logits
