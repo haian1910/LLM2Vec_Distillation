@@ -231,20 +231,6 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
             def decode_input_ids(tokenizer, input_ids):
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
-            def compute_att_loss_2(teacher_model, student_model, input_data, k):
-            att_loss_total = 0.0
-            device = teacher_model.device
-            # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
-            tokenizer_student = distiller.student_tokenizer
-            tokenizer_teacher = distiller.teacher_tokenizers
-
-            # Lấy batch_size từ input_ids
-            batch_size = input_data["input_ids"].shape[0]
-
-            # Hàm decode input_ids thành văn bản
-            def decode_input_ids(tokenizer, input_ids):
-                return tokenizer.decode(input_ids, skip_special_tokens=True)
-
             # Duyệt qua từng sample trong batch
             for i in range(batch_size):
                 # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
