@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0)
+GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -22,15 +22,15 @@ TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
 DATA_DIR="${BASE_PATH}/data/yelp/"
-NUM_LABELS=4
+NUM_LABELS=5
 # task
 TASK="dual_space_kd"
 # hp
-BATCH_SIZE=1
+BATCH_SIZE=4
 LR=0.001
-GRAD_ACC=2
+GRAD_ACC=1
 EVAL_BATCH_SIZE=16
-EPOCH=1
+EPOCH=2
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
