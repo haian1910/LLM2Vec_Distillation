@@ -47,12 +47,8 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
 
             # Custom list of English stopwords (a common subset)
             stop_words = [
-                'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while',
-                'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
-                'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in',
-                'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
-                'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more',
-                'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
+                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+                'during', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
                 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
                 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
                 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
@@ -63,10 +59,9 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
                 'she\'s', 'it\'s', 'we\'re', 'they\'re', 'i\'ve', 'you\'ve', 'we\'ve', 'they\'ve',
                 'i\'d', 'you\'d', 'he\'d', 'she\'d', 'we\'d', 'they\'d', 'i\'ll', 'you\'ll', 'he\'ll',
                 'she\'ll', 'we\'ll', 'they\'ll', 'isn\'t', 'aren\'t', 'wasn\'t', 'weren\'t', 'hasn\'t',
-                'haven\'t', 'hadn\'t', 'doesn\'t', 'don\'t', 'didn\'t', 'won\'t', 'wouldn\'t',
-                'shan\'t', 'shouldn\'t', 'can\'t', 'cannot', 'couldn\'t', 'mustn\'t', 'let\'s',
-                'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
+                'haven\'t', 'hadn\'t', 'let\'s', 'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
                 'why\'s', 'how\'s', '.'
+                
             ]
 
 
