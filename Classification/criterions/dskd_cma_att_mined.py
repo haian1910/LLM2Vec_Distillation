@@ -4,7 +4,7 @@ import editdistance
 import torch.nn as nn
 import re
 
-class DualSpaceKDWithCMA(VariousDivergence):
+class DSKD_CMA_ATT_MINED(VariousDivergence):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate  # Ensure kd_rate is initialized
