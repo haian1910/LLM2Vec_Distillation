@@ -161,12 +161,12 @@ class Distiller(nn.Module):
                 )
                 model = PeftModel.from_pretrained(
                     model,
-                    self.args.model_path
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
                 )
                 model = model.merge_and_unload()  # This can take several minutes on cpu
 
                 model = PeftModel.from_pretrained(
-                    model, f"{self.args.model_path}-unsup-simcse"
+                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
                 )
 
                 # Apply new LoRA adapter for fine-tuning
@@ -215,8 +215,7 @@ class Distiller(nn.Module):
         else:
             self.teacher_hidden_size = config.hidden_size
 
-        config.num_labels = self.args.num_labels
-        model = AutoModelForSequenceClassification.from_pretrained(
+        model = AutoModel.from_pretrained(
             self.args.teacher_model_path,
             config=config,
             device_map=None,
@@ -225,13 +224,13 @@ class Distiller(nn.Module):
         )
         teacher_model = PeftModel.from_pretrained(
             model,
-            self.args.teacher_model_path
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
         )
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
         # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
         teacher_model = PeftModel.from_pretrained(
-            teacher_model, f"{self.args.teacher_model_path}-unsup-simcse"
+            teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
         )
       
 
