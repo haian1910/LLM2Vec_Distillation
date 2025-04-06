@@ -4,8 +4,10 @@ import torch
 import torch.nn as nn
 from transformers import (
     AutoConfig,
+    AutoModelForCausalLM,
     AutoTokenizer,
-    AutoModelForCausalLM
+    AutoModel,  
+    AutoModelForSequenceClassification,
 )
 from peft import (
     PeftModel,
@@ -14,6 +16,9 @@ from peft import (
     get_peft_model
 )
 from utils import log_rank
+from huggingface_hub import login
+
+login(token="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")
 
 
 class Distiller(nn.Module):
@@ -21,43 +26,15 @@ class Distiller(nn.Module):
         super(Distiller, self).__init__()
         self.args = args
         self.device = device
-        self.student_model_type = args.model_type
         self.student_model, self.student_tokenizer = self.load_student_model()
         
         if self.args.teacher_model_path is not None:
             self.teacher_model, self.teacher_tokenizers = self.load_teacher_model()
         else:
             self.teacher_model, self.teacher_tokenizers = None, {}
-        self.teacher_model_type = args.teacher_model_type
-
         if self.teacher_model and args.projector_config_path:
             self.set_and_load_existing_projectors()
             log_rank(f"projector structure: {self.projectors}")
-        
-        if args.teacher_to_student_token_mapping is not None:
-            self.tea2stu_token_mapping = json.load(open(args.teacher_to_student_token_mapping))
-            log_rank(f"Load teacher-to-student token mapping from {args.teacher_to_student_token_mapping}")
-        
-        if args.teacher_to_student_id_mapping is not None:
-            self.tea2stu_id_mapping = json.load(open(args.teacher_to_student_id_mapping))
-            log_rank(f"Load teacher-to-student id mapping from {args.teacher_to_student_id_mapping}")
-
-            self.stu2tea_id_mapping = {}
-            for tea_id in self.tea2stu_id_mapping:
-                if self.tea2stu_id_mapping[tea_id] not in self.stu2tea_id_mapping:
-                    self.stu2tea_id_mapping[self.tea2stu_id_mapping[tea_id]] = [int(tea_id)]
-                else:
-                    self.stu2tea_id_mapping[self.tea2stu_id_mapping[tea_id]].append(int(tea_id))
-            
-            max_align_num = 1
-            for stu_id in self.stu2tea_id_mapping:
-                self.stu2tea_id_mapping[stu_id] = self.stu2tea_id_mapping[stu_id][:max_align_num] + \
-                    [self.stu2tea_id_mapping[stu_id][-1]] \
-                        * max(0, max_align_num - len(self.stu2tea_id_mapping[stu_id]))
-                
-            self.tea2stu_id_mapping = torch.LongTensor(list(self.tea2stu_id_mapping.values())).to(device)
-            self.stu2tea_id_mapping_tea = torch.LongTensor(list(self.stu2tea_id_mapping.values())).to(device)
-            self.stu2tea_id_mapping_stu = torch.LongTensor(list(self.stu2tea_id_mapping.keys())).to(device)
 
     @staticmethod
     def add_distiller_args(parser):
@@ -84,22 +61,17 @@ class Distiller(nn.Module):
                            help='path for the vocab alignment file (id, student-to-teacher)')
         return parser
     
-    def load_tokenizer(self, model_type, path):
+    def load_tokenizer(self, path):
         tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-        if model_type in ["gpt2", "opt", "llama", "gptj", "llama2", "mistral", "tinyllama", "minicpm"]:
-            tokenizer.pad_token_id = tokenizer.eos_token_id
-        elif model_type == "qwen":
-            # tokenizer.pad_token_id = 151646
-            tokenizer.eos_token_id = 151643
-            tokenizer.pad_token_id = tokenizer.eos_token_id
+        if tokenizer.pad_token_id is None:
+          tokenizer.pad_token_id = tokenizer.eos_token_id
         
         return tokenizer
-
     def set_and_load_existing_projectors(self):
         self.projectors = nn.ModuleDict()
         projector_config = json.load(open(self.args.projector_config_path))
         name_dict = {
-            "s": self.student_hidden_size, 
+            "s": self.hidden_size, 
             "t": self.teacher_hidden_size,
             "relu": nn.ReLU()
         }
@@ -155,18 +127,19 @@ class Distiller(nn.Module):
                 except:
                     log_rank("Not compatible for projector '{}'".format(key))
                     continue
-    
+
     def load_student_model(self):
         log_rank("Loading student model...")
         config = AutoConfig.from_pretrained(self.args.model_path, trust_remote_code=True)
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer(self.args.model_type, self.args.model_path)
+        # lấy tokenizer
+        tokenizer = self.load_tokenizer(self.args.model_path)
         
         if hasattr(config, "n_embed"):
-            self.student_hidden_size = config.n_embed
+            self.hidden_size = config.n_embed
         else:
-            self.student_hidden_size = config.hidden_size
+            self.hidden_size = config.hidden_size
         
         if self.args.model_dtype == "fp32":
             self.dtype = torch.float32
@@ -176,51 +149,51 @@ class Distiller(nn.Module):
             self.dtype = torch.float16
         else:
             raise NotImplementedError("Invalid model_dtype for f`{self.args.model_dtype}`")
-        
-        model = AutoModelForCausalLM.from_pretrained(
-            self.args.model_path, 
-            config=config, 
-            device_map=None, 
-            torch_dtype=self.dtype,
-            trust_remote_code=True,
-        )
 
-        if self.args.peft is not None:
+        if self.args.peft is not None: #for LLM2Vec
             if self.args.peft == "lora":
-                model.enable_input_require_grads()
-                if self.args.peft_path is not None:
-                    if self.args.do_train:
-                        _model = PeftModel.from_pretrained(model, self.args.peft_path)
-                        state_dict = dict(_model.state_dict().items())
-                        peft_config = LoraConfig(
-                            task_type=TaskType.CAUSAL_LM, 
-                            inference_mode=(not self.args.do_train), 
-                            r=self.args.peft_lora_r, 
-                            lora_alpha=self.args.peft_lora_alpha, 
-                            lora_dropout=self.args.peft_lora_dropout
-                        )
-                        model = get_peft_model(model, peft_config)
-                        model.load_state_dict(state_dict)
-                        del _model
-                        del state_dict
-                    else:
-                        model = PeftModel.from_pretrained(model, self.args.peft_path)
-                else:
+                model = AutoModel.from_pretrained(
+                    self.args.model_path,
+                    config=config,
+                    device_map=None,
+                    torch_dtype=self.dtype,
+                    trust_remote_code=True,
+                )
+                model = PeftModel.from_pretrained(
+                    model,
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
+                )
+                model = model.merge_and_unload()  # This can take several minutes on cpu
+
+                model = PeftModel.from_pretrained(
+                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+                )
+
+                # Apply new LoRA adapter for fine-tuning
+                if self.args.do_train:
                     peft_config = LoraConfig(
-                        task_type=TaskType.CAUSAL_LM, 
-                        inference_mode=(not self.args.do_train), 
-                        r=self.args.peft_lora_r, 
-                        lora_alpha=self.args.peft_lora_alpha, 
-                        lora_dropout=self.args.peft_lora_dropout
+                        task_type=TaskType.SEQ_CLS,
+                        inference_mode=(not self.args.do_train),
+                        r=self.args.peft_lora_r,
+                        lora_alpha=self.args.peft_lora_alpha,
+                        lora_dropout=self.args.peft_lora_dropout,
                     )
                     model = get_peft_model(model, peft_config)
-                model.print_trainable_parameters()
+
             else:
                 raise NotImplementedError
-        else:
+        else: #for BERT
+            model = AutoModel.from_pretrained(
+                self.args.model_path, 
+                config=config, 
+                device_map=None, 
+                torch_dtype=self.dtype,
+                trust_remote_code=True,)
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
+
+        model = NLIClassifier(model, num_classes=self.args.num_labels)
 
         if self.args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
@@ -229,37 +202,42 @@ class Distiller(nn.Module):
     
     def load_teacher_model(self):
         log_rank("Loading teacher model...")
-        config = AutoConfig.from_pretrained(self.args.teacher_model_path)
+        config = AutoConfig.from_pretrained(
+            self.args.teacher_model_path,
+            trust_remote_code=True
+        )
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer(self.args.teacher_model_type, self.args.teacher_model_path)
+        tokenizer = self.load_tokenizer(self.args.teacher_model_path)
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
         else:
             self.teacher_hidden_size = config.hidden_size
 
-        model = AutoModelForCausalLM.from_pretrained(
-            self.args.teacher_model_path, 
-            config=config, 
-            device_map=None, 
+        model = AutoModel.from_pretrained(
+            self.args.teacher_model_path,
+            config=config,
+            device_map=None,
             torch_dtype=self.dtype,
-            trust_remote_code=True
+            trust_remote_code=True,
         )
+        teacher_model = PeftModel.from_pretrained(
+            model,
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
+        )
+        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
-        if self.args.peft is not None and self.args.teacher_peft_path is not None:
-            if self.args.peft == "lora":
-                model = PeftModel.from_pretrained(model, self.args.teacher_peft_path)
-                model = model.merge_and_unload()
-            else:
-                raise NotImplementedError
-        else:
-            log_rank(' > number of parameters of the teacher model: {:,}'.format(
-                sum([p.nelement() for p in model.parameters()])
-            ))
-        for params in model.parameters():
-            params.requires_grad = False
-        return model, {self.args.teacher_model_type: tokenizer}
+        # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
+        teacher_model = PeftModel.from_pretrained(
+            teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+        )
+      
+
+        for param in teacher_model.parameters():
+            param.requires_grad = False
+        
+        return teacher_model, tokenizer
     
     def add_optimizer_param_group(self, optimizer):
         if hasattr(self, "projectors"):
@@ -290,3 +268,28 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
+class NLIClassifier(nn.Module):
+    def __init__(self, base_model, num_classes=3):
+        super().__init__()
+        self.base_model = base_model
+        hidden_size = base_model.config.hidden_size
+        self.classifier = nn.Linear(2 * hidden_size, num_classes)
+
+    def forward(self, premise_input_ids, premise_attention_mask, hypothesis_input_ids, hypothesis_attention_mask):
+        premise_outputs = self.base_model(input_ids=premise_input_ids, attention_mask=premise_attention_mask)
+        premise_hidden = premise_outputs.last_hidden_state
+        premise_mask = premise_attention_mask.unsqueeze(-1).expand(premise_hidden.size())
+        premise_sum = (premise_hidden * premise_mask).sum(dim=1)
+        premise_count = premise_mask.sum(dim=1)
+        premise_emb = premise_sum / premise_count  # Mean pooling
+
+        hypothesis_outputs = self.base_model(input_ids=hypothesis_input_ids, attention_mask=hypothesis_attention_mask)
+        hypothesis_hidden = hypothesis_outputs.last_hidden_state
+        hypothesis_mask = hypothesis_attention_mask.unsqueeze(-1).expand(hypothesis_hidden.size())
+        hypothesis_sum = (hypothesis_hidden * hypothesis_mask).sum(dim=1)
+        hypothesis_count = hypothesis_mask.sum(dim=1)
+        hypothesis_emb = hypothesis_sum / hypothesis_count  # Mean pooling
+
+        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1).to(torch.float32)
+        logits = self.classifier(combined_emb)
+        return logits
