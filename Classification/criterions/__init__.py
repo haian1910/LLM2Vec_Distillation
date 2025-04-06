@@ -3,7 +3,6 @@ from .various_divergence import VariousDivergence
 from .dual_space_kd import DualSpaceKD
 from .dual_space_kd_with_cross_model_attention import DualSpaceKDWithCMA
 from .universal_logit_distillation import UniversalLogitDistillation
-from .min_edit_dis_kld import MinEditDisForwardKLD
 from .uld_att_mined import ULD_ATT_MINED
 from .uld_att_mined_cka import ULD_ATT_MINED_CKA
 from .dskd_att_mined import DSKD_ATT_MINED
@@ -18,7 +17,6 @@ criterion_list = {
     "dual_space_kd": DualSpaceKD,
     "dual_space_kd_with_cma": DualSpaceKDWithCMA,
     "universal_logit_distillation": UniversalLogitDistillation,
-    "min_edit_dis_kld": MinEditDisForwardKLD,
     "uld_att_mined": ULD_ATT_MINED,
     "uld_att_mined_cka": ULD_ATT_MINED_CKA,
     "dskd_att_mined": DSKD_ATT_MINED,
