@@ -21,14 +21,14 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/yelp/"
+DATA_DIR="${BASE_PATH}/data/ag_news/"
 NUM_LABELS=4
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
 BATCH_SIZE=4
 LR=0.001
-GRAD_ACC=2
+GRAD_ACC=1
 EVAL_BATCH_SIZE=16
 EPOCH=2
 KD_RATE=0.5
