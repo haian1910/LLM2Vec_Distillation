@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0)
+GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -24,11 +24,11 @@ NUM_LABELS=4
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=2
+BATCH_SIZE=4
 LR=0.0005
 GRAD_ACC=1
 EVAL_BATCH_SIZE=32
-EPOCH=1
+EPOCH=2
 # length
 MAX_LENGTH=512
 # runtime
