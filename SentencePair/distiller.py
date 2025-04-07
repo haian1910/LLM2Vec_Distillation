@@ -232,7 +232,7 @@ class Distiller(nn.Module):
         teacher_model = PeftModel.from_pretrained(
             teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
         )
-      
+        teacher_model = NLIClassifier(teacher_model, num_classes=self.args.num_labels)
 
         for param in teacher_model.parameters():
             param.requires_grad = False
@@ -268,6 +268,9 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
+import torch
+import torch.nn as nn
+
 class NLIClassifier(nn.Module):
     def __init__(self, base_model, num_classes=3):
         super().__init__()
@@ -276,20 +279,41 @@ class NLIClassifier(nn.Module):
         self.classifier = nn.Linear(2 * hidden_size, num_classes)
 
     def forward(self, premise_input_ids, premise_attention_mask, hypothesis_input_ids, hypothesis_attention_mask):
-        premise_outputs = self.base_model(input_ids=premise_input_ids, attention_mask=premise_attention_mask)
+        # Encode premise with attentions and hidden states
+        premise_outputs = self.base_model(
+            input_ids=premise_input_ids,
+            attention_mask=premise_attention_mask,
+            output_attentions=True,
+            output_hidden_states=True 
+        )
         premise_hidden = premise_outputs.last_hidden_state
         premise_mask = premise_attention_mask.unsqueeze(-1).expand(premise_hidden.size())
         premise_sum = (premise_hidden * premise_mask).sum(dim=1)
         premise_count = premise_mask.sum(dim=1)
-        premise_emb = premise_sum / premise_count  # Mean pooling
+        premise_emb = premise_sum / premise_count
 
-        hypothesis_outputs = self.base_model(input_ids=hypothesis_input_ids, attention_mask=hypothesis_attention_mask)
-        hypothesis_hidden = hypothesis_outputs.last_hidden_state
+        # Encode hypothesis with attentions and hidden states
+        hypothesis_outputs = self.base_model(
+            input_ids=hypothesis_input_ids,
+            attention_mask=hypothesis_attention_mask,
+            output_attentions=True,
+            output_hidden_states=True
+        )
+        hypothesis_hidden = hypothesis_outputs.last_hidden_state 
         hypothesis_mask = hypothesis_attention_mask.unsqueeze(-1).expand(hypothesis_hidden.size())
         hypothesis_sum = (hypothesis_hidden * hypothesis_mask).sum(dim=1)
         hypothesis_count = hypothesis_mask.sum(dim=1)
-        hypothesis_emb = hypothesis_sum / hypothesis_count  # Mean pooling
+        hypothesis_emb = hypothesis_sum / hypothesis_count
 
-        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1).to(torch.float32)
-        logits = self.classifier(combined_emb)
-        return logits
+        # Combine embeddings and compute logits
+        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1).to(torch.float32)  # (batch_size, 2 * hidden_size)
+        logits = self.classifier(combined_emb)  # (batch_size, num_classes)
+
+        # Prepare outputs
+        return {
+            "logits": logits,
+            "premise_attentions": premise_outputs.attentions, 
+            "premise_hidden_states": premise_outputs.hidden_states,  
+            "hypothesis_attentions": hypothesis_outputs.attentions, 
+            "hypothesis_hidden_states": hypothesis_outputs.hidden_states 
+        }
