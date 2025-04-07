@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.distributed as dist
+#ok
 
 class CrossEntropyLoss(nn.Module):
     def __init__(self, args) -> None:
