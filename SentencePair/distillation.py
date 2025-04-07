@@ -282,11 +282,17 @@ def evaluate(args, tokenizer, model, dataset, split, device):
 
     for input_batch, output_batch in dataloader:
         dataset.move_to_device([input_batch, output_batch], device)
-
-        outputs = model(
+        
+        '''outputs = model(
             input_batch["input_ids"],
             attention_mask=input_batch["attention_mask"],
             position_ids=input_batch.get("position_ids", None)
+        )'''
+        outputs = model(
+            premise_input_ids=input_batch["student_premise_input_ids"],
+            premise_attention_mask=input_batch["student_premise_attention_mask"],
+            hypothesis_input_ids=input_batch["student_hypo_input_ids"],
+            hypothesis_attention_mask=input_batch["student_hypo_attention_mask"]
         )
         logits = outputs.logits
 
