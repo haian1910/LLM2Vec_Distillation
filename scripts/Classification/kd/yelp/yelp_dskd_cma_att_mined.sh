@@ -26,7 +26,7 @@ NUM_LABELS=5
 # task
 TASK="dskd_cma_att_mined"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=16
 LR=0.001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=16
