@@ -19,10 +19,10 @@ from transformers import (
     AutoModel,
 )
 from transformers.integrations import HfDeepSpeedConfig
-from Classification.arguments import get_args
-from Classification.distiller import Distiller
-from Classification.data_utils.distill_datasets import DistillDataset
-from Classification.utils import (
+from SentencePair.arguments import get_args
+from SentencePair.distiller import Distiller
+from SentencePair.data_utils.distill_datasets import DistillDataset
+from SentencePair.utils import (
     initialize,
     get_optimizer, 
     get_learning_rate_scheduler,
@@ -30,7 +30,7 @@ from Classification.utils import (
     log_rank,
     all_gather,
 )
-from Classification.criterions import build_criterion
+from SentencePair.criterions import build_criterion
 # from rouge_metric import compute_metrics
 
 torch.set_num_threads(4)
@@ -50,12 +50,19 @@ def prepare_dataset(args, distiller):
         )
         log_rank("Num of dev data: {}".format(len(data["dev"])))
 
-        if os.path.exists(os.path.join(args.data_dir, "test.csv")):
-            data["test"] = DistillDataset(
-                args, "test", distiller.student_tokenizer,
+        if os.path.exists(os.path.join(args.data_dir, "test1.csv")):
+            data["test1"] = DistillDataset(
+                args, "test1", distiller.student_tokenizer,
                 distiller.teacher_tokenizers
             )
-            log_rank("Num of test data: {}".format(len(data["test"])))
+            log_rank("Num of test1 data: {}".format(len(data["test1"])))
+            
+        if os.path.exists(os.path.join(args.data_dir, "test2.csv")):
+            data["test2"] = DistillDataset(
+                args, "test2", distiller.student_tokenizer,
+                distiller.teacher_tokenizers
+            )
+            log_rank("Num of test2 data: {}".format(len(data["test2"])))
 
     elif args.do_eval:
         data["test"] = DistillDataset(
@@ -132,7 +139,8 @@ def finetune(
             input_batch, output_batch = batch
             dataset["train"].move_to_device([input_batch, output_batch], device)
 
-            bs = input_batch["input_ids"].size(0)  # Batch size
+            # bs = input_batch["input_ids"].size(0) 
+            bs = input_batch["student_premise_input_ids"].size(0)
             loss_denom = bs
 
             loss, logging_output = model(
@@ -435,12 +443,20 @@ def main():
             args, 
             distiller.student_tokenizer, 
             model, 
-            dataset["test"], 
-            "test", 
+            dataset["test1"], 
+            "test1", 
             0, 
             device
         )
-        
-    
+        evaluate(
+            args, 
+            distiller.student_tokenizer, 
+            model, 
+            dataset["test2"], 
+            "test2", 
+            0, 
+            device
+        )
+
 if __name__ == "__main__":
     main()
