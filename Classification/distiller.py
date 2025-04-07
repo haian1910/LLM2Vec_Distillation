@@ -171,13 +171,26 @@ class Distiller(nn.Module):
                 )
 
                 # Apply new LoRA adapter for fine-tuning
-                if self.args.do_train:
+                
+                '''if self.args.do_train:
                     peft_config = LoraConfig(
                         task_type=TaskType.SEQ_CLS,  # Use SEQ_CLS instead of FEATURE_EXTRACTION
                         inference_mode=(not self.args.do_train),
                         r=self.args.peft_lora_r,
                         lora_alpha=self.args.peft_lora_alpha,
                         lora_dropout=self.args.peft_lora_dropout,
+                    )'''
+                if self.args.do_train:
+                    peft_config = LoraConfig(
+                        task_type=TaskType.SEQ_CLS,  # SEQ_CLS là hợp lý nếu đang làm classification
+                        inference_mode=(not self.args.do_train),
+                        r=self.args.peft_lora_r,
+                        lora_alpha=self.args.peft_lora_alpha,
+                        lora_dropout=self.args.peft_lora_dropout,
+                        target_modules=[
+                            "q_proj", "k_proj", "v_proj", "o_proj", 
+                            "gate_proj", "up_proj", "down_proj"
+                        ]
                     )
                     model = get_peft_model(model, peft_config)
 
