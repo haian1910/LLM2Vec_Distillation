@@ -19,14 +19,14 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
+TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
 DATA_DIR="${BASE_PATH}/data/yelp/"
 NUM_LABELS=5
 # task
 TASK="dual_space_kd"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=16
 LR=0.001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=16
@@ -55,6 +55,7 @@ OPTS=""
 # model
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT_PATH}"
+OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --teacher-model-path ${TEACHER_MODEL_PATH}"
 OPTS+=" --teacher-model-fp16"
