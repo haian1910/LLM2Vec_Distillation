@@ -128,17 +128,7 @@ class Distiller(nn.Module):
     
     def load_student_model(self):
         log_rank("Loading student model...")
-        config = AutoConfig.from_pretrained(self.args.model_path, trust_remote_code=True)
-        config.is_model_parallel = False
-
-        # lấy tokenizer
-        tokenizer = self.load_tokenizer(self.args.model_path)
-        
-        if hasattr(config, "n_embed"):
-            self.hidden_size = config.n_embed
-        else:
-            self.hidden_size = config.hidden_size
-        
+    
         if self.args.model_dtype == "fp32":
             self.dtype = torch.float32
         elif self.args.model_dtype == "bf16":
@@ -150,9 +140,20 @@ class Distiller(nn.Module):
 
         if self.args.peft is not None: #for LLM2Vec
             if self.args.peft == "lora":
+                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp", trust_remote_code=True)
+                config.is_model_parallel = False
+        
+                # lấy tokenizer
+                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+                
+                if hasattr(config, "n_embed"):
+                    self.hidden_size = config.n_embed
+                else:
+                    self.hidden_size = config.hidden_size
+        
                 config.num_labels = self.args.num_labels
                 model = AutoModelForSequenceClassification.from_pretrained(
-                    self.args.model_path,
+                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
                     config=config,
                     device_map=None,
                     torch_dtype=self.dtype,
@@ -198,16 +199,23 @@ class Distiller(nn.Module):
             else:
                 raise NotImplementedError
         else: #for BERT
+            config = AutoConfig.from_pretrained("bert-base-uncased", trust_remote_code=True)
+            config.is_model_parallel = False
+    
+            # lấy tokenizer
+            tokenizer = self.load_tokenizer("bert-base-uncased")
+            
+            if hasattr(config, "n_embed"):
+                self.hidden_size = config.n_embed
+            else:
+                self.hidden_size = config.hidden_size
             config.num_labels = self.args.num_labels
             model = AutoModelForSequenceClassification.from_pretrained(
-                self.args.model_path, 
+                "bert-base-uncased", 
                 config=config, 
                 device_map=None, 
                 torch_dtype=self.dtype,
                 trust_remote_code=True,)
-            if tokenizer.pad_token_id is None:
-                tokenizer.pad_token_id = 0
-                model.config.pad_token_id = 0
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
@@ -221,12 +229,12 @@ class Distiller(nn.Module):
     def load_teacher_model(self):
         log_rank("Loading teacher model...")
         config = AutoConfig.from_pretrained(
-            self.args.teacher_model_path,
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
             trust_remote_code=True
         )
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer(self.args.teacher_model_path)
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
@@ -235,26 +243,30 @@ class Distiller(nn.Module):
 
         config.num_labels = self.args.num_labels
         model = AutoModelForSequenceClassification.from_pretrained(
-            self.args.teacher_model_path,
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
             config=config,
             device_map=None,
             torch_dtype=self.dtype,
             trust_remote_code=True,
         )
         model.config.pad_token_id = 2
-            
         teacher_model = PeftModel.from_pretrained(
             model,
             "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-        )
+        )    
+        
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
         # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
         teacher_model = PeftModel.from_pretrained(
             teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
+        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
+        teacher_model = PeftModel.from_pretrained(
+            model,
+            self.args.teacher_model_path,
+        )
       
-
         for param in teacher_model.parameters():
             param.requires_grad = False
         
