@@ -26,7 +26,7 @@ NUM_LABELS=5
 # task
 TASK="uld"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=16
 LR=0.001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=16
@@ -53,6 +53,7 @@ OPTS=""
 # model
 OPTS+=" --base-path ${BASE_PATH}"
 OPTS+=" --model-path ${CKPT_PATH}"
+OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --teacher-model-path ${TEACHER_MODEL_PATH}"
 OPTS+=" --teacher-model-fp16"
