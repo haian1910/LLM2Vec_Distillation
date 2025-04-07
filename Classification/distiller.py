@@ -64,9 +64,9 @@ class Distiller(nn.Module):
     def load_tokenizer(self, path):
         tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
         if tokenizer.pad_token_id is None:
-          tokenizer.pad_token_id = tokenizer.eos_token_id
-        
+          tokenizer.pad_token_id = 0
         return tokenizer
+        
     def set_and_load_existing_projectors(self):
         self.projectors = nn.ModuleDict()
         projector_config = json.load(open(self.args.projector_config_path))
@@ -160,8 +160,8 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
-                if tokenizer.pad_token is None:
-                    tokenizer.pad_token = 0
+                if tokenizer.pad_token_id is None:
+                    tokenizer.pad_token_id = 0
                     model.config.pad_token_id = 0
                     
                 model = PeftModel.from_pretrained(
@@ -208,9 +208,9 @@ class Distiller(nn.Module):
                 device_map=None, 
                 torch_dtype=self.dtype,
                 trust_remote_code=True,)
-            if tokenizer.pad_token is None:
-                    tokenizer.pad_token = 0
-                    model.config.pad_token_id = 0
+            if tokenizer.pad_token_id is None:
+                tokenizer.pad_token_id = 0
+                model.config.pad_token_id = 0
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
@@ -244,9 +244,9 @@ class Distiller(nn.Module):
             torch_dtype=self.dtype,
             trust_remote_code=True,
         )
-        if tokenizer.pad_token is None:
-                    tokenizer.pad_token = 0
-                    model.config.pad_token_id = 0
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token_id = 0
+            model.config.pad_token_id = 0
             
         teacher_model = PeftModel.from_pretrained(
             model,
