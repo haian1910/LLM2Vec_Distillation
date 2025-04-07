@@ -38,8 +38,10 @@ class UniversalLogitDistillation(CrossEntropyLoss):
         with torch.no_grad():
             teacher_model.eval()
             teacher_outputs = teacher_model(
-                input_data["teacher_input_ids"],
-                attention_mask=input_data["teacher_attention_mask"],
+                premise_input_ids=input_data["student_premise_input_ids"],
+                premise_attention_mask=input_data["student_premise_attention_mask"],
+                hypothesis_input_ids=input_data["student_hypo_input_ids"],
+                hypothesis_attention_mask=input_data["student_hypo_attention_mask"],
                 output_hidden_states=True
             )
         
