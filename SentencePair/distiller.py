@@ -268,8 +268,6 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
-import torch
-import torch.nn as nn
 
 class NLIClassifier(nn.Module):
     def __init__(self, base_model, num_classes=3):
