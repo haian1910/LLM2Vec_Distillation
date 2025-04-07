@@ -160,6 +160,10 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
+                if tokenizer.pad_token is None:
+                    tokenizer.pad_token = 0
+                    model.config.pad_token_id = 0
+                    
                 model = PeftModel.from_pretrained(
                     model,
                     "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
@@ -204,6 +208,9 @@ class Distiller(nn.Module):
                 device_map=None, 
                 torch_dtype=self.dtype,
                 trust_remote_code=True,)
+            if tokenizer.pad_token is None:
+                    tokenizer.pad_token = 0
+                    model.config.pad_token_id = 0
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
@@ -237,6 +244,10 @@ class Distiller(nn.Module):
             torch_dtype=self.dtype,
             trust_remote_code=True,
         )
+        if tokenizer.pad_token is None:
+                    tokenizer.pad_token = 0
+                    model.config.pad_token_id = 0
+            
         teacher_model = PeftModel.from_pretrained(
             model,
             "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
