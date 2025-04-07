@@ -63,8 +63,6 @@ class Distiller(nn.Module):
     
     def load_tokenizer(self, path):
         tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-        if tokenizer.pad_token_id is None:
-          tokenizer.pad_token_id = 0
         return tokenizer
         
     def set_and_load_existing_projectors(self):
@@ -160,9 +158,8 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
-                if tokenizer.pad_token_id is None:
-                    tokenizer.pad_token_id = 0
-                    model.config.pad_token_id = 0
+                
+                model.config.pad_token_id = 2
                     
                 model = PeftModel.from_pretrained(
                     model,
@@ -244,9 +241,7 @@ class Distiller(nn.Module):
             torch_dtype=self.dtype,
             trust_remote_code=True,
         )
-        if tokenizer.pad_token_id is None:
-            tokenizer.pad_token_id = 0
-            model.config.pad_token_id = 0
+        model.config.pad_token_id = 2
             
         teacher_model = PeftModel.from_pretrained(
             model,
