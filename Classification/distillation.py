@@ -187,6 +187,8 @@ def finetune(
                         tokenizer.save_pretrained(save_dir_path)
                         log_rank("Saving model...")
                         model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                        log_rank("Saving config")
+                        model.module.student_model.config.save_pretrained(save_dir_path)
                     if hasattr(model.module, "projectors"):
                         log_rank("Saving projector...")
                         torch.save(
@@ -219,6 +221,8 @@ def finetune(
                         tokenizer.save_pretrained(save_dir_path)
                         log_rank("Saving model...")
                         model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                        log_rank("Saving config")
+                        model.module.student_model.config.save_pretrained(save_dir_path)
                     if hasattr(model.module, "projectors"):
                         log_rank("Saving projector...")
                         torch.save(
