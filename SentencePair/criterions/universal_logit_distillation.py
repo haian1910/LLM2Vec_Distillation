@@ -20,8 +20,10 @@ class UniversalLogitDistillation(CrossEntropyLoss):
         
         # Student forward pass
         outputs = model(
-            input_data["input_ids"],
-            attention_mask=input_data["attention_mask"],
+            premise_input_ids=input_data["student_premise_input_ids"],
+            premise_attention_mask=input_data["student_premise_attention_mask"],
+            hypothesis_input_ids=input_data["student_hypo_input_ids"],
+            hypothesis_attention_mask=input_data["student_hypo_attention_mask"],
             output_hidden_states=True
         )
         logits = outputs.logits
