@@ -19,7 +19,7 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
+TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
 DATA_DIR="${BASE_PATH}/data/yelp/"
 NUM_LABELS=5
@@ -54,6 +54,7 @@ mkdir -p ${SAVE_PATH}
 OPTS=""
 # model
 OPTS+=" --base-path ${BASE_PATH}"
+OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --model-path ${CKPT_PATH}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --teacher-model-path ${TEACHER_MODEL_PATH}"
