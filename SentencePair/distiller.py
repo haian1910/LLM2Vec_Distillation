@@ -130,16 +130,6 @@ class Distiller(nn.Module):
 
     def load_student_model(self):
         log_rank("Loading student model...")
-        config = AutoConfig.from_pretrained(self.args.model_path, trust_remote_code=True)
-        config.is_model_parallel = False
-
-        # lấy tokenizer
-        tokenizer = self.load_tokenizer(self.args.model_path)
-        
-        if hasattr(config, "n_embed"):
-            self.hidden_size = config.n_embed
-        else:
-            self.hidden_size = config.hidden_size
         
         if self.args.model_dtype == "fp32":
             self.dtype = torch.float32
@@ -152,8 +142,17 @@ class Distiller(nn.Module):
 
         if self.args.peft is not None: #for LLM2Vec
             if self.args.peft == "lora":
+                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp", trust_remote_code=True)
+                config.is_model_parallel = False
+
+                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
+        
+                if hasattr(config, "n_embed"):
+                    self.hidden_size = config.n_embed
+                else:
+                    self.hidden_size = config.hidden_size
                 model = AutoModel.from_pretrained(
-                    self.args.model_path,
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
                     config=config,
                     device_map=None,
                     torch_dtype=self.dtype,
@@ -183,8 +182,17 @@ class Distiller(nn.Module):
             else:
                 raise NotImplementedError
         else: #for BERT
+            config = AutoConfig.from_pretrained("bert-base-uncased", trust_remote_code=True)
+            config.is_model_parallel = False
+
+            tokenizer = self.load_tokenizer("bert-base-uncased")
+            
+            if hasattr(config, "n_embed"):
+                self.hidden_size = config.n_embed
+            else:
+                self.hidden_size = config.hidden_size
             model = AutoModel.from_pretrained(
-                self.args.model_path, 
+                "bert-base-uncased", 
                 config=config, 
                 device_map=None, 
                 torch_dtype=self.dtype,
@@ -203,12 +211,12 @@ class Distiller(nn.Module):
     def load_teacher_model(self):
         log_rank("Loading teacher model...")
         config = AutoConfig.from_pretrained(
-            self.args.teacher_model_path,
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             trust_remote_code=True
         )
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer(self.args.teacher_model_path)
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
@@ -216,7 +224,7 @@ class Distiller(nn.Module):
             self.teacher_hidden_size = config.hidden_size
 
         model = AutoModel.from_pretrained(
-            self.args.teacher_model_path,
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             config=config,
             device_map=None,
             torch_dtype=self.dtype,
@@ -231,6 +239,11 @@ class Distiller(nn.Module):
         # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
         teacher_model = PeftModel.from_pretrained(
             teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+        )
+        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
+        teacher_model = PeftModel.from_pretrained(
+            model,
+            self.args.teacher_model_path,
         )
         teacher_model = NLIClassifier(teacher_model, num_classes=self.args.num_labels)
 
