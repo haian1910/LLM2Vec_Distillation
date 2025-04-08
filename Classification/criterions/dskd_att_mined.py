@@ -20,7 +20,7 @@ class DSKD_ATT_MINED(VariousDivergence):
         model = distiller.student_model
         teacher_model = distiller.teacher_model
         self.distiller = distiller
-        
+        batch_denom = dist.get_world_size()
         outputs = model(
             input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
