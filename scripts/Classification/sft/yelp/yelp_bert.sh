@@ -20,7 +20,7 @@ CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
 DATA_DIR="${BASE_PATH}/data/yelp/"
-NUM_LABELS=4
+NUM_LABELS=5
 # task
 TASK="sft"
 # hp
