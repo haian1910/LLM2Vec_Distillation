@@ -172,13 +172,22 @@ def finetune(
                     "dev", 
                     device
                 )
-                if "test" in dataset:
+                if "test1" in dataset:
                     _, _, _, _ = evaluate(
                         args, 
                         tokenizer, 
                         model.module.student_model, 
-                        dataset["test"], 
-                        "test", 
+                        dataset["test1"], 
+                        "test1", 
+                        device
+                    )
+                if "test2" in dataset:
+                    _, _, _, _ = evaluate(
+                        args, 
+                        tokenizer, 
+                        model.module.student_model, 
+                        dataset["test2"], 
+                        "test2", 
                         device
                     )
                 ckpt_name = "epoch{}_step{}_loss{:.4f}".format(
