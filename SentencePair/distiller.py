@@ -201,7 +201,7 @@ class Distiller(nn.Module):
                 sum([p.nelement() for p in model.parameters()])
             ))
 
-        model = NLIClassifier(model, num_classes=self.args.num_labels)
+        model = NLIClassifier(model, num_classes=self.args.num_labels, dtype=self.dtype)
 
         if self.args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
@@ -245,7 +245,7 @@ class Distiller(nn.Module):
             model,
             self.args.teacher_model_path,
         )
-        teacher_model = NLIClassifier(teacher_model, num_classes=self.args.num_labels)
+        model = NLIClassifier(model, num_classes=self.args.num_labels, dtype=self.dtype)
 
         for param in teacher_model.parameters():
             param.requires_grad = False
@@ -283,14 +283,15 @@ class Distiller(nn.Module):
         return loss, logging_output
 
 class NLIClassifier(nn.Module):
-    def __init__(self, base_model, num_classes=3):
+    def __init__(self, base_model, num_classes=3, dtype=torch.float32):
         super().__init__()
         self.base_model = base_model
         hidden_size = base_model.config.hidden_size
-        self.classifier = nn.Linear(2 * hidden_size, num_classes)
+        self.classifier = nn.Linear(2 * hidden_size, num_classes).to(dtype=dtype)  # Match dtype
+        self.dtype = dtype
 
     def forward(self, premise_input_ids, premise_attention_mask, hypothesis_input_ids, hypothesis_attention_mask):
-        # Encode premise with attentions and hidden states
+        # Encode premise
         premise_outputs = self.base_model(
             input_ids=premise_input_ids,
             attention_mask=premise_attention_mask,
@@ -303,7 +304,7 @@ class NLIClassifier(nn.Module):
         premise_count = premise_mask.sum(dim=1)
         premise_emb = premise_sum / premise_count
 
-        # Encode hypothesis with attentions and hidden states
+        # Encode hypothesis
         hypothesis_outputs = self.base_model(
             input_ids=hypothesis_input_ids,
             attention_mask=hypothesis_attention_mask,
@@ -316,11 +317,10 @@ class NLIClassifier(nn.Module):
         hypothesis_count = hypothesis_mask.sum(dim=1)
         hypothesis_emb = hypothesis_sum / hypothesis_count
 
-        # Combine embeddings and compute logits
-        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1).to(torch.float32)  # (batch_size, 2 * hidden_size)
-        logits = self.classifier(combined_emb)  # (batch_size, num_classes)
+        # Combine embeddings (no explicit cast to float32 unless necessary)
+        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1)  # Keep in model's dtype
+        logits = self.classifier(combined_emb)  # Ensure classifier matches dtype
 
-        # Prepare outputs
         return {
             "logits": logits,
             "premise_attentions": premise_outputs.attentions, 
