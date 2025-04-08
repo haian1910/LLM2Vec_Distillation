@@ -207,7 +207,7 @@ class DSKD_ATT_MINED(VariousDivergence):
         kd_loss, log = self.compute_dual_space_kd_loss(outputs, teacher_outputs, output_data, distiller, log)
         
         # Combine losses
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (kd_loss + batch_denom * att_loss_total) # Hàm loss cuối cùng
+        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (kd_loss + att_loss_total) # Hàm loss cuối cùng
         log["loss"] = loss
 
         accuracy = self.compute_accuracy(
