@@ -21,6 +21,7 @@ class CrossEntropyLoss(nn.Module):
         # Compute loss and accuracy
         loss, nll_loss = self.compute_cross_entropy_loss(logits, target)
         correct = self.compute_accuracy(logits, target)
+        batch_denom = dist.get_world_size()
         
         # Update logging output
         logging_output = self.record_logging_output(
