@@ -132,8 +132,8 @@ def finetune(
             input_batch, output_batch = batch
             dataset["train"].move_to_device([input_batch, output_batch], device)
 
-            bs = input_batch["input_ids"].size(0)  # Batch size
-            loss_denom = bs
+            #bs = input_batch["input_ids"].size(0)  
+            loss_denom = dist.get_world_size()
 
             loss, logging_output = model(
                 criterion, 
