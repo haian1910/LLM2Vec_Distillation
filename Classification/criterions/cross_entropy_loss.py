@@ -56,7 +56,8 @@ class CrossEntropyLoss(nn.Module):
         
         # Tính số lượng mẫu dự đoán đúng
         correct = pred.eq(target).sum().float()
-        return correct
+        accu = correct / target.size(0)
+        return accu
 
     def record_logging_output(self, logging_output, batch_denom, content):
         """
