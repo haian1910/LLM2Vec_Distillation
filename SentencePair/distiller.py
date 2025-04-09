@@ -15,7 +15,7 @@ from peft import (
     TaskType,
     get_peft_model
 )
-from utils import log_rank
+from SentencePair.utils import log_rank
 from huggingface_hub import login
 
 login(token="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")
@@ -63,10 +63,8 @@ class Distiller(nn.Module):
     
     def load_tokenizer(self, path):
         tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-        if tokenizer.pad_token_id is None:
-          tokenizer.pad_token_id = tokenizer.eos_token_id
-        
         return tokenizer
+        
     def set_and_load_existing_projectors(self):
         self.projectors = nn.ModuleDict()
         projector_config = json.load(open(self.args.projector_config_path))
@@ -127,10 +125,10 @@ class Distiller(nn.Module):
                 except:
                     log_rank("Not compatible for projector '{}'".format(key))
                     continue
-
+    
     def load_student_model(self):
         log_rank("Loading student model...")
-        
+    
         if self.args.model_dtype == "fp32":
             self.dtype = torch.float32
         elif self.args.model_dtype == "bf16":
@@ -142,40 +140,59 @@ class Distiller(nn.Module):
 
         if self.args.peft is not None: #for LLM2Vec
             if self.args.peft == "lora":
-                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp", trust_remote_code=True)
+                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp", trust_remote_code=True)
                 config.is_model_parallel = False
-
-                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
         
+                # lấy tokenizer
+                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+                
                 if hasattr(config, "n_embed"):
                     self.hidden_size = config.n_embed
                 else:
                     self.hidden_size = config.hidden_size
-                model = AutoModel.from_pretrained(
-                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+        
+                config.num_labels = self.args.num_labels
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
                     config=config,
                     device_map=None,
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
+                
+                model.config.pad_token_id = 2
+                    
                 model = PeftModel.from_pretrained(
                     model,
-                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
+                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
                 )
                 model = model.merge_and_unload()  # This can take several minutes on cpu
 
                 model = PeftModel.from_pretrained(
-                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+                    model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
                 )
 
                 # Apply new LoRA adapter for fine-tuning
-                if self.args.do_train:
+                
+                '''if self.args.do_train:
                     peft_config = LoraConfig(
-                        task_type=TaskType.SEQ_CLS,
+                        task_type=TaskType.SEQ_CLS,  # Use SEQ_CLS instead of FEATURE_EXTRACTION
                         inference_mode=(not self.args.do_train),
                         r=self.args.peft_lora_r,
                         lora_alpha=self.args.peft_lora_alpha,
                         lora_dropout=self.args.peft_lora_dropout,
+                    )'''
+                if self.args.do_train:
+                    peft_config = LoraConfig(
+                        task_type=TaskType.SEQ_CLS,  # SEQ_CLS là hợp lý nếu đang làm classification
+                        inference_mode=(not self.args.do_train),
+                        r=self.args.peft_lora_r,
+                        lora_alpha=self.args.peft_lora_alpha,
+                        lora_dropout=self.args.peft_lora_dropout,
+                        target_modules=[
+                            "q_proj", "k_proj", "v_proj", "o_proj", 
+                            "gate_proj", "up_proj", "down_proj"
+                        ]
                     )
                     model = get_peft_model(model, peft_config)
 
@@ -184,14 +201,16 @@ class Distiller(nn.Module):
         else: #for BERT
             config = AutoConfig.from_pretrained("bert-base-uncased", trust_remote_code=True)
             config.is_model_parallel = False
-
+    
+            # lấy tokenizer
             tokenizer = self.load_tokenizer("bert-base-uncased")
             
             if hasattr(config, "n_embed"):
                 self.hidden_size = config.n_embed
             else:
                 self.hidden_size = config.hidden_size
-            model = AutoModel.from_pretrained(
+            config.num_labels = self.args.num_labels
+            model = AutoModelForSequenceClassification.from_pretrained(
                 "bert-base-uncased", 
                 config=config, 
                 device_map=None, 
@@ -201,7 +220,6 @@ class Distiller(nn.Module):
                 sum([p.nelement() for p in model.parameters()])
             ))
 
-        model = NLIClassifier(model, num_classes=self.args.num_labels, dtype=self.dtype)
 
         if self.args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
@@ -211,42 +229,44 @@ class Distiller(nn.Module):
     def load_teacher_model(self):
         log_rank("Loading teacher model...")
         config = AutoConfig.from_pretrained(
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
             trust_remote_code=True
         )
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
         else:
             self.teacher_hidden_size = config.hidden_size
 
-        model = AutoModel.from_pretrained(
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+        config.num_labels = self.args.num_labels
+        model = AutoModelForSequenceClassification.from_pretrained(
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
             config=config,
             device_map=None,
             torch_dtype=self.dtype,
             trust_remote_code=True,
         )
+        model.config.pad_token_id = 2
         teacher_model = PeftModel.from_pretrained(
             model,
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
-        )
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+        )    
+        
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
         # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
         teacher_model = PeftModel.from_pretrained(
-            teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+            teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
         teacher_model = PeftModel.from_pretrained(
             model,
             self.args.teacher_model_path,
         )
-        model = NLIClassifier(model, num_classes=self.args.num_labels, dtype=self.dtype)
-
+      
         for param in teacher_model.parameters():
             param.requires_grad = False
         
@@ -281,50 +301,3 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
-
-class NLIClassifier(nn.Module):
-    def __init__(self, base_model, num_classes=3, dtype=torch.float32):
-        super().__init__()
-        self.base_model = base_model
-        hidden_size = base_model.config.hidden_size
-        self.classifier = nn.Linear(2 * hidden_size, num_classes).to(dtype=dtype)  # Match dtype
-        self.dtype = dtype
-
-    def forward(self, premise_input_ids, premise_attention_mask, hypothesis_input_ids, hypothesis_attention_mask):
-        # Encode premise
-        premise_outputs = self.base_model(
-            input_ids=premise_input_ids,
-            attention_mask=premise_attention_mask,
-            output_attentions=True,
-            output_hidden_states=True 
-        )
-        premise_hidden = premise_outputs.last_hidden_state
-        premise_mask = premise_attention_mask.unsqueeze(-1).expand(premise_hidden.size())
-        premise_sum = (premise_hidden * premise_mask).sum(dim=1)
-        premise_count = premise_mask.sum(dim=1)
-        premise_emb = premise_sum / premise_count
-
-        # Encode hypothesis
-        hypothesis_outputs = self.base_model(
-            input_ids=hypothesis_input_ids,
-            attention_mask=hypothesis_attention_mask,
-            output_attentions=True,
-            output_hidden_states=True
-        )
-        hypothesis_hidden = hypothesis_outputs.last_hidden_state 
-        hypothesis_mask = hypothesis_attention_mask.unsqueeze(-1).expand(hypothesis_hidden.size())
-        hypothesis_sum = (hypothesis_hidden * hypothesis_mask).sum(dim=1)
-        hypothesis_count = hypothesis_mask.sum(dim=1)
-        hypothesis_emb = hypothesis_sum / hypothesis_count
-
-        # Combine embeddings (no explicit cast to float32 unless necessary)
-        combined_emb = torch.cat([premise_emb, hypothesis_emb], dim=1)  # Keep in model's dtype
-        logits = self.classifier(combined_emb)  # Ensure classifier matches dtype
-
-        return {
-            "logits": logits,
-            "premise_attentions": premise_outputs.attentions, 
-            "premise_hidden_states": premise_outputs.hidden_states,  
-            "hypothesis_attentions": hypothesis_outputs.attentions, 
-            "hypothesis_hidden_states": hypothesis_outputs.hidden_states 
-        }
