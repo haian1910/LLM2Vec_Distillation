@@ -74,7 +74,6 @@ def prepare_dataset(args, distiller):
         raise ValueError("Do train and do eval must set one")
         
     return data
-
 def finetune(
     args, 
     tokenizer: AutoTokenizer, 
@@ -139,9 +138,8 @@ def finetune(
             input_batch, output_batch = batch
             dataset["train"].move_to_device([input_batch, output_batch], device)
 
-            # bs = input_batch["input_ids"].size(0) 
-            bs = input_batch["student_premise_input_ids"].size(0)
-            loss_denom = bs
+            #bs = input_batch["input_ids"].size(0)  
+            loss_denom = dist.get_world_size()
 
             loss, logging_output = model(
                 criterion, 
@@ -204,6 +202,8 @@ def finetune(
                         tokenizer.save_pretrained(save_dir_path)
                         log_rank("Saving model...")
                         model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                        log_rank("Saving config")
+                        model.module.student_model.config.save_pretrained(save_dir_path)
                     if hasattr(model.module, "projectors"):
                         log_rank("Saving projector...")
                         torch.save(
@@ -236,6 +236,8 @@ def finetune(
                         tokenizer.save_pretrained(save_dir_path)
                         log_rank("Saving model...")
                         model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                        log_rank("Saving config")
+                        model.module.student_model.config.save_pretrained(save_dir_path)
                     if hasattr(model.module, "projectors"):
                         log_rank("Saving projector...")
                         torch.save(
@@ -299,17 +301,11 @@ def evaluate(args, tokenizer, model, dataset, split, device):
 
     for input_batch, output_batch in dataloader:
         dataset.move_to_device([input_batch, output_batch], device)
-        
-        '''outputs = model(
+
+        outputs = model(
             input_batch["input_ids"],
             attention_mask=input_batch["attention_mask"],
             position_ids=input_batch.get("position_ids", None)
-        )'''
-        outputs = model(
-            premise_input_ids=input_batch["student_premise_input_ids"],
-            premise_attention_mask=input_batch["student_premise_attention_mask"],
-            hypothesis_input_ids=input_batch["student_hypo_input_ids"],
-            hypothesis_attention_mask=input_batch["student_hypo_attention_mask"]
         )
         logits = outputs.logits
 
@@ -466,6 +462,7 @@ def main():
             0, 
             device
         )
-
+        
+    
 if __name__ == "__main__":
     main()
