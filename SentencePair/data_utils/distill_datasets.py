@@ -37,52 +37,45 @@ class DistillDataset(Dataset):
 
         if os.path.exists(path):
             df = pd.read_csv(path)
-            # Expect MultiNLI-like columns: 'premise', 'hypothesis', and 'label'
             required_cols = ['premise', 'hypothesis']
             if not all(col in df.columns for col in required_cols):
                 raise ValueError(f"CSV file {path} must contain 'premise' and 'hypothesis' columns")
             label_col = 'label' if 'label' in df.columns else 'labels'
             
-            log_rank("Processing dataset for sentence pair classification...")  
+            log_rank("Processing dataset for BERT-style sentence pair classification...")  
             
             for _, row in tqdm(df.iterrows(), total=len(df), disable=(dist.get_rank() != 0)):
-                # Tokenize premise and hypothesis separately for student
-                student_premise_ids = self.student_tokenizer.encode(
+                # Tokenize premise and hypothesis as a single sequence for student (BERT-style)
+                student_encoding = self.student_tokenizer(
                     row['premise'], 
-                    add_special_tokens=True,
+                    row['hypothesis'],
+                    add_special_tokens=True,  # Adds [CLS] and [SEP]
                     max_length=self.max_length,
-                    truncation=True
-                )
-                student_hypo_ids = self.student_tokenizer.encode(
-                    row['hypothesis'], 
-                    add_special_tokens=True,
-                    max_length=self.max_length,
-                    truncation=True
+                    truncation=True,
+                    padding=False  # Padding will be handled in collate
                 )
                 
                 tokenized_data = {
-                    "student_premise_input_ids": student_premise_ids,
-                    "student_hypo_input_ids": student_hypo_ids,
+                    "student_input_ids": student_encoding['input_ids'],
+                    "student_attention_mask": student_encoding['attention_mask'],
+                    "student_token_type_ids": student_encoding['token_type_ids'],  # Segment IDs for premise vs hypothesis
                     "label": int(row[label_col])
                 }
         
-                # Tokenize for teacher if provided
+                # Tokenize for teacher if provided (also BERT-style)
                 if self.teacher_tokenizer:
-                    teacher_premise_ids = self.teacher_tokenizer.encode(
+                    teacher_encoding = self.teacher_tokenizer(
                         row['premise'],
-                        add_special_tokens=True,
-                        max_length=self.max_length,
-                        truncation=True
-                    )
-                    teacher_hypo_ids = self.teacher_tokenizer.encode(
                         row['hypothesis'],
                         add_special_tokens=True,
                         max_length=self.max_length,
-                        truncation=True
+                        truncation=True,
+                        padding=False
                     )
                     tokenized_data.update({
-                        "teacher_premise_input_ids": teacher_premise_ids,
-                        "teacher_hypo_input_ids": teacher_hypo_ids
+                        "teacher_input_ids": teacher_encoding['input_ids'],
+                        "teacher_attention_mask": teacher_encoding['attention_mask'],
+                        "teacher_token_type_ids": teacher_encoding['token_type_ids']
                     })
 
                 dataset.append(tokenized_data)
@@ -93,32 +86,23 @@ class DistillDataset(Dataset):
     def _process_sentence_pair(
         self, i, samp, model_data, no_model_data
     ):
-        # Process student premise
-        premise_ids = np.array(samp["student_premise_input_ids"])
-        premise_len = len(premise_ids)
-        model_data["student_premise_input_ids"][i][:premise_len] = torch.tensor(premise_ids, dtype=torch.long)
-        model_data["student_premise_attention_mask"][i][:premise_len] = 1.0
-
-        # Process student hypothesis
-        hypo_ids = np.array(samp["student_hypo_input_ids"])
-        hypo_len = len(hypo_ids)
-        model_data["student_hypo_input_ids"][i][:hypo_len] = torch.tensor(hypo_ids, dtype=torch.long)
-        model_data["student_hypo_attention_mask"][i][:hypo_len] = 1.0
+        # Process student input (combined premise and hypothesis)
+        input_ids = np.array(samp["student_input_ids"])
+        seq_len = len(input_ids)
+        model_data["student_input_ids"][i][:seq_len] = torch.tensor(input_ids, dtype=torch.long)
+        model_data["student_attention_mask"][i][:seq_len] = torch.tensor(samp["student_attention_mask"], dtype=torch.long)
+        model_data["student_token_type_ids"][i][:seq_len] = torch.tensor(samp["student_token_type_ids"], dtype=torch.long)
 
         # Process label
         no_model_data["labels"][i] = torch.tensor(samp["label"], dtype=torch.long)
 
         # Process teacher data if available
-        if "teacher_premise_input_ids" in samp:
-            t_premise_ids = np.array(samp["teacher_premise_input_ids"])
-            t_premise_len = len(t_premise_ids)
-            model_data["teacher_premise_input_ids"][i][:t_premise_len] = torch.tensor(t_premise_ids, dtype=torch.long)
-            model_data["teacher_premise_attention_mask"][i][:t_premise_len] = 1.0
-
-            t_hypo_ids = np.array(samp["teacher_hypo_input_ids"])
-            t_hypo_len = len(t_hypo_ids)
-            model_data["teacher_hypo_input_ids"][i][:t_hypo_len] = torch.tensor(t_hypo_ids, dtype=torch.long)
-            model_data["teacher_hypo_attention_mask"][i][:t_hypo_len] = 1.0
+        if "teacher_input_ids" in samp:
+            t_input_ids = np.array(samp["teacher_input_ids"])
+            t_seq_len = len(t_input_ids)
+            model_data["teacher_input_ids"][i][:t_seq_len] = torch.tensor(t_input_ids, dtype=torch.long)
+            model_data["teacher_attention_mask"][i][:t_seq_len] = torch.tensor(samp["teacher_attention_mask"], dtype=torch.long)
+            model_data["teacher_token_type_ids"][i][:t_seq_len] = torch.tensor(samp["teacher_token_type_ids"], dtype=torch.long)
 
     def move_to_device(self, datazip, device):
         for data in datazip:
@@ -130,16 +114,13 @@ class DistillDataset(Dataset):
         bs = len(samples)
         max_length = self.max_length
 
-        student_pad_token_id = self.student_tokenizer.pad_token_id
-        if student_pad_token_id is None:
-            student_pad_token_id = 0
+        student_pad_token_id = self.student_tokenizer.pad_token_id or 0
         
-        # Initialize model_data for student premise and hypothesis
+        # Initialize model_data for student (BERT-style single sequence)
         model_data = {
-            "student_premise_input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
-            "student_premise_attention_mask": torch.zeros(bs, max_length),
-            "student_hypo_input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
-            "student_hypo_attention_mask": torch.zeros(bs, max_length),
+            "student_input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
+            "student_attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
+            "student_token_type_ids": torch.zeros(bs, max_length, dtype=torch.long),  # 0 for premise, 1 for hypothesis
         }
         
         output_data = {
@@ -148,14 +129,11 @@ class DistillDataset(Dataset):
 
         # Add teacher data if tokenizer is provided
         if self.teacher_tokenizer:
-            teacher_pad_token_id = self.teacher_tokenizer.pad_token_id
-            if teacher_pad_token_id is None:
-                teacher_pad_token_id = 0
+            teacher_pad_token_id = self.teacher_tokenizer.pad_token_id or 0
             model_data.update({
-                "teacher_premise_input_ids": torch.ones(bs, max_length, dtype=torch.long) * teacher_pad_token_id,
-                "teacher_premise_attention_mask": torch.zeros(bs, max_length),
-                "teacher_hypo_input_ids": torch.ones(bs, max_length, dtype=torch.long) * teacher_pad_token_id,
-                "teacher_hypo_attention_mask": torch.zeros(bs, max_length),
+                "teacher_input_ids": torch.ones(bs, max_length, dtype=torch.long) * teacher_pad_token_id,
+                "teacher_attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
+                "teacher_token_type_ids": torch.zeros(bs, max_length, dtype=torch.long),
             })
 
         # Process each sample
