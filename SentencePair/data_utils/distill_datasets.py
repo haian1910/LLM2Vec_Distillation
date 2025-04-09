@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 import torch.distributed as dist
 from tqdm import tqdm
-from utils import log_rank
+from SentencePair.utils import log_rank
 from typing import Dict, Optional
 from transformers import AutoTokenizer
 
@@ -89,9 +89,9 @@ class DistillDataset(Dataset):
         # Process student input (combined premise and hypothesis)
         input_ids = np.array(samp["student_input_ids"])
         seq_len = len(input_ids)
-        model_data["student_input_ids"][i][:seq_len] = torch.tensor(input_ids, dtype=torch.long)
-        model_data["student_attention_mask"][i][:seq_len] = torch.tensor(samp["student_attention_mask"], dtype=torch.long)
-        model_data["student_token_type_ids"][i][:seq_len] = torch.tensor(samp["student_token_type_ids"], dtype=torch.long)
+        model_data["input_ids"][i][:seq_len] = torch.tensor(input_ids, dtype=torch.long)
+        model_data["attention_mask"][i][:seq_len] = torch.tensor(samp["student_attention_mask"], dtype=torch.long)
+        model_data["token_type_ids"][i][:seq_len] = torch.tensor(samp["student_token_type_ids"], dtype=torch.long)
 
         # Process label
         no_model_data["labels"][i] = torch.tensor(samp["label"], dtype=torch.long)
@@ -118,9 +118,9 @@ class DistillDataset(Dataset):
         
         # Initialize model_data for student (BERT-style single sequence)
         model_data = {
-            "student_input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
-            "student_attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
-            "student_token_type_ids": torch.zeros(bs, max_length, dtype=torch.long),  # 0 for premise, 1 for hypothesis
+            "input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
+            "attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
+            "token_type_ids": torch.zeros(bs, max_length, dtype=torch.long),  # 0 for premise, 1 for hypothesis
         }
         
         output_data = {
