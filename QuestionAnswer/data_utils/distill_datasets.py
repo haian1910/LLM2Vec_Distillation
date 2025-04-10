@@ -1,32 +1,32 @@
 import torch
 import os
-import json
+import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset
 import torch.distributed as dist
 from tqdm import tqdm
-
 from utils import log_rank
 from typing import Dict, Optional
 from transformers import AutoTokenizer
-
+import ast  # For parsing string lists
 
 class DistillDataset(Dataset):
     def __init__(
-        self, 
-        args, 
+        self,
+        args,
         split: str,
-        student_tokenizer: Dict[str, AutoTokenizer], 
-        teacher_tokenizers: Optional[Dict[str, AutoTokenizer]] = {},
+        student_tokenizer: AutoTokenizer,
+        teacher_tokenizer: Optional[AutoTokenizer] = None,
+        num_choices: int = 8,  # QASC has 8 choices (A-H)
     ):
         self.args = args
         self.split = split
         self.student_tokenizer = student_tokenizer
-        self.teacher_tokenizers = teacher_tokenizers
+        self.teacher_tokenizer = teacher_tokenizer
         self.max_length = args.max_length
-        self.max_prompt_length = args.max_prompt_length
+        self.num_choices = num_choices
+
         self.dataset = self._load_and_process_data()
-        # log_rank(f"Num of data instances: {len(self.dataset)}")
 
     def __len__(self):
         return len(self.dataset)
@@ -36,160 +36,123 @@ class DistillDataset(Dataset):
     
     def _load_and_process_data(self):
         dataset = []
-        path = os.path.join(self.args.data_dir, f"{self.split}.jsonl")
+        path = os.path.join(self.args.data_dir, f"{self.split}.csv")
 
         if os.path.exists(path):
-            with open(path) as f:
-                raw_data = [json.loads(l) for l in f.readlines()]
-                self.answers = [x["output"] if isinstance(x["output"], list) else [x["output"]] for x in raw_data]
+            df = pd.read_csv(path)
+            required_columns = ['question', 'choices', 'answerKey']
+            if not all(col in df.columns for col in required_columns):
+                raise ValueError(f"CSV file {path} must contain 'question', 'choices', and 'answerKey' columns")
             
-            log_rank("Processing dataset for student model (and all teacher models)...")  
-            seg = np.iinfo(np.int32).max * 2 + 1        
-            for data in tqdm(raw_data, disable=(dist.get_rank() != 0)):
-                student_prompt_ids = self.student_tokenizer.encode(
-                    data["prompt"], add_special_tokens=False
+            log_rank("Processing QASC-like dataset for multiple-choice question answering...")
+            
+            for _, row in tqdm(df.iterrows(), total=len(df), disable=(dist.get_rank() != 0)):
+                # Parse choices (stringified list of dicts)
+                choices = ast.literal_eval(row['choices'])
+                if len(choices) != self.num_choices:
+                    raise ValueError(f"Expected {self.num_choices} choices, but got {len(choices)}")
+                
+                # Extract choice texts and labels
+                choice_texts = [choice['text'] for choice in choices]
+                choice_labels = [choice['label'] for choice in choices]
+                
+                # Map answerKey (e.g., "B") to its index
+                answer_key = row['answerKey']
+                try:
+                    answer_idx = choice_labels.index(answer_key)
+                except ValueError:
+                    raise ValueError(f"Answer key '{answer_key}' not found in labels {choice_labels}")
+
+                # Prepare inputs: combine question with each choice
+                question = row['question']
+                inputs = [f"{question} {choice_text}" for choice_text in choice_texts]
+                
+                # Tokenize for student model
+                student_encoding = self.student_tokenizer(
+                    inputs,
+                    add_special_tokens=True,
+                    max_length=self.max_length,
+                    truncation=True,
+                    padding=False,
+                    return_tensors=None
                 )
-                student_prompt_ids = student_prompt_ids[:self.max_prompt_length]
-                student_response_ids = self.student_tokenizer.encode(
-                    data["output"], add_special_tokens=False
-                )
-                student_response_ids = student_response_ids \
-                                     + [self.student_tokenizer.eos_token_id]
+                
                 tokenized_data = {
-                    "student_input_ids": student_prompt_ids + [seg] + student_response_ids,
+                    "student_input_ids": student_encoding['input_ids'],
+                    "student_attention_mask": student_encoding['attention_mask'],
+                    "label": answer_idx  # Index of correct choice (0-7)
                 }
         
-                for model_type in self.teacher_tokenizers:
-                    if self.teacher_tokenizers[model_type] is None: continue
-                        
-                    teacher_prompt_ids = self.teacher_tokenizers[model_type].encode(
-                        data["prompt"], add_special_tokens=False
+                # Tokenize for teacher model if provided
+                if self.teacher_tokenizer:
+                    teacher_encoding = self.teacher_tokenizer(
+                        inputs,
+                        add_special_tokens=True,
+                        max_length=self.max_length,
+                        truncation=True,
+                        padding=False,
+                        return_tensors=None
                     )
-                    teacher_prompt_ids = teacher_prompt_ids[:self.max_prompt_length]
-                    teacher_response_ids = self.teacher_tokenizers[model_type].encode(
-                        data["output"], add_special_tokens=False
-                    )
-                    teacher_response_ids = teacher_response_ids \
-                                            + [self.teacher_tokenizers[model_type].eos_token_id]
-                    tokenized_data[f"teacher_{model_type}_input_ids"] = \
-                        teacher_prompt_ids + [seg] + teacher_response_ids
+                    tokenized_data["teacher_input_ids"] = teacher_encoding['input_ids']
+                    tokenized_data["teacher_attention_mask"] = teacher_encoding['attention_mask']
 
                 dataset.append(tokenized_data)
             return dataset
         else:
             raise FileNotFoundError(f"No such file named {path}")
         
-    def _process_lm(
-        self, i, samp, model_data, no_model_data, gen_data, 
-        teacher_model_data, teacher_no_model_data
+    def _process_multiple_choice(
+        self, i, samp, model_data, no_model_data
     ):
-        seg = np.iinfo(np.int32).max * 2 + 1
-        input_ids = np.array(samp["student_input_ids"])
-        source_len = np.where(input_ids == seg)[0][0]
-        prompt = input_ids[:source_len]
-        input_ids = np.concatenate(
-            [input_ids[:source_len], input_ids[source_len+1:]], axis=0
-        )
-        input_ids = input_ids[:self.max_length]
-        input_len = len(input_ids)
-        model_data["input_ids"][i][:input_len-1] = torch.tensor(input_ids[:-1], dtype=torch.long)
-        model_data["attention_mask"][i][:input_len-1] = 1.0
-        if self.args.model_type in ["gpt2"]:
-            model_data["position_ids"][i][:input_len-1] = torch.arange(0, input_len-1, dtype=torch.long)
-        no_model_data["label"][i][:input_len-1] = torch.tensor(input_ids[1:], dtype=torch.long)
-        no_model_data["label"][i][:source_len-1] = -100
-        no_model_data["loss_mask"][i][:input_len-1] = 1.0
-        no_model_data["loss_mask"][i][:source_len-1] = 0
-        
-        gen_data["input_ids"][i][-len(prompt):] = torch.tensor(prompt, dtype=torch.long)
-        gen_data["attention_mask"][i][-len(prompt):] = 1.0
+        # Student inputs
+        for j in range(self.num_choices):
+            input_ids = np.array(samp["student_input_ids"][j])
+            input_len = min(len(input_ids), self.max_length)
+            
+            model_data["input_ids"][i, j, :input_len] = torch.tensor(input_ids[:input_len], dtype=torch.long)
+            model_data["attention_mask"][i, j, :input_len] = torch.tensor(samp["student_attention_mask"][j][:input_len], dtype=torch.long)
 
-        for model_type in self.teacher_tokenizers:
-            t_input_ids = np.array(samp[f"teacher_{model_type}_input_ids"])
-            t_source_len = np.where(t_input_ids == seg)[0][0]
-            t_input_ids = np.concatenate(
-                [t_input_ids[:t_source_len], t_input_ids[t_source_len+1:]], axis=0
-            )
-            t_input_ids = t_input_ids[:self.max_length]
-            t_input_len = len(t_input_ids)
-            teacher_model_data[model_type]["input_ids"][i][:t_input_len-1] = \
-                torch.tensor(t_input_ids[:-1], dtype=torch.long)
-            teacher_model_data[model_type]["attention_mask"][i][:t_input_len-1] = 1.0
-            if model_type in ["gpt2"]:
-                teacher_model_data[model_type]["position_ids"][i][:t_input_len-1] = \
-                    torch.arange(0, t_input_len-1, dtype=torch.long)
-            teacher_no_model_data[model_type]["label"][i][:t_input_len-1] = \
-                torch.tensor(t_input_ids[1:], dtype=torch.long)
-            teacher_no_model_data[model_type]["label"][i][:t_source_len-1] = -100
-            teacher_no_model_data[model_type]["loss_mask"][i][:t_input_len-1] = 1.0
-            teacher_no_model_data[model_type]["loss_mask"][i][:t_source_len-1] = 0
+        no_model_data["labels"][i] = torch.tensor(samp["label"], dtype=torch.long)
+
+        # Teacher inputs if available
+        if "teacher_input_ids" in samp:
+            for j in range(self.num_choices):
+                t_input_ids = np.array(samp["teacher_input_ids"][j])
+                t_input_len = min(len(t_input_ids), self.max_length)
+                model_data["teacher_input_ids"][i, j, :t_input_len] = torch.tensor(t_input_ids[:t_input_len], dtype=torch.long)
+                model_data["teacher_attention_mask"][i, j, :t_input_len] = torch.tensor(samp["teacher_attention_mask"][j][:t_input_len], dtype=torch.long)
 
     def move_to_device(self, datazip, device):
         for data in datazip:
             for k in data:
                 if isinstance(data[k], torch.Tensor):
                     data[k] = data[k].to(device)
-                elif isinstance(data[k], dict):
-                    for kk in data[k]:
-                        data[k][kk] = data[k][kk].to(device)
 
     def collate(self, samples):
         bs = len(samples)
         max_length = self.max_length
+        num_choices = self.num_choices
 
+        student_pad_token_id = self.student_tokenizer.pad_token_id or 0
+        
+        # Shape: (batch_size, num_choices, max_length)
         model_data = {
-            "input_ids": torch.ones(bs, max_length, dtype=torch.long) \
-                        * self.student_tokenizer.eos_token_id,
-            "attention_mask": torch.zeros(bs, max_length),
+            "input_ids": torch.ones(bs, num_choices, max_length, dtype=torch.long) * student_pad_token_id,
+            "attention_mask": torch.zeros(bs, num_choices, max_length, dtype=torch.long),
         }
         
-        if self.args.model_type in ["gpt2"]:
-            model_data["position_ids"] = torch.zeros(bs, max_length, dtype=torch.long)
-            
-        no_model_data = {
-            "label": torch.ones(bs, max_length, dtype=torch.long) * -100,
-            "loss_mask": torch.zeros(bs, max_length)
-        }
-        
-        gen_data = {
-            "input_ids": torch.ones(bs, self.max_prompt_length, dtype=torch.long) \
-                        * self.student_tokenizer.eos_token_id,
-            "attention_mask": torch.zeros(bs, self.max_prompt_length, dtype=torch.long),
+        output_data = {
+            "labels": torch.zeros(bs, dtype=torch.long)  # Correct choice index (0-7)
         }
 
-        teacher_model_data = {
-            model_type: {
-                "input_ids": torch.ones(bs, max_length, dtype=torch.long) \
-                            * self.teacher_tokenizers[model_type].eos_token_id,
-                "attention_mask": torch.zeros(bs, max_length),
-            } for model_type in self.teacher_tokenizers
-        }
-
-        for model_type in self.teacher_tokenizers:
-            if model_type in ["gpt2"]:
-                teacher_model_data[model_type]["position_ids"] = torch.zeros(
-                    bs, max_length, dtype=torch.long
-                )
-
-        teacher_no_model_data = {
-            model_type: {
-                "label": torch.ones(bs, max_length, dtype=torch.long) * -100,
-                "loss_mask": torch.zeros(bs, max_length),
-            } for model_type in self.teacher_tokenizers
-        }
+        if self.teacher_tokenizer:
+            teacher_pad_token_id = self.teacher_tokenizer.pad_token_id or 0
+            model_data.update({
+                "teacher_input_ids": torch.ones(bs, num_choices, max_length, dtype=torch.long) * teacher_pad_token_id,
+                "teacher_attention_mask": torch.zeros(bs, num_choices, max_length, dtype=torch.long),
+            })
 
         for i, samp in enumerate(samples):
-            self._process_lm(
-                i, samp, model_data, no_model_data, gen_data, 
-                teacher_model_data, teacher_no_model_data
-            )
-
-        for model_type in teacher_model_data:
-            prefix = f"teacher_{model_type}_"
-            for key in teacher_model_data[model_type]:
-                model_data[f"{prefix}{key}"] = teacher_model_data[model_type][key]
-                
-            for key in teacher_no_model_data[model_type]:
-                no_model_data[f"{prefix}{key}"] = teacher_no_model_data[model_type][key]
+            self._process_multiple_choice(i, samp, model_data, output_data)
         
-        return model_data, no_model_data, gen_data
+        return model_data, output_data
