@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 import torch.distributed as dist
 from tqdm import tqdm
-from utils import log_rank
+from QuestionAnswer.utils import log_rank
 from typing import Dict, Optional
 from transformers import AutoTokenizer
 import ast  # For parsing string lists
@@ -24,7 +24,7 @@ class DistillDataset(Dataset):
         self.student_tokenizer = student_tokenizer
         self.teacher_tokenizer = teacher_tokenizer
         self.max_length = args.max_length
-        self.num_choices = num_choices
+        self.num_choices = args.num_labels
 
         self.dataset = self._load_and_process_data()
 
