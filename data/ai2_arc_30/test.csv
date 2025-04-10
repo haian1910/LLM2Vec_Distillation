@@ -1,0 +1,75 @@
+id,question,choices,answerKey
+Mercury_417466,Which statement best explains why photosynthesis is the foundation of most food webs?,"{'text': array(['Sunlight is the source of energy for nearly all ecosystems.',
+       'Most ecosystems are found on land instead of in water.',
+       'Carbon dioxide is more available than other gases.',
+       'The producers in all ecosystems are plants.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7081673,Which piece of safety equipment is used to keep mold spores from entering the respiratory system?,"{'text': array(['safety goggles', 'breathing mask', 'rubber gloves', 'lead apron'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7239733,Meiosis is a type of cell division in which germ cells divide to produce haploid cells. Where does meiosis occur?,"{'text': array(['brain cells', 'bone cells', 'muscle cells', 'ovary cells'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+NYSEDREGENTS_2015_4_8,Which characteristic describes the texture of a kitten's fur?,"{'text': array(['gray', 'warm', 'long', 'soft'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_7037258,Which best describes the structure of an atom?,"{'text': array(['a lightweight core surrounded by neutral particles',
+       'a massive core surrounded by negatively-charged particles',
+       'a network of interacting positive and negative particles',
+       'overlapping layers of neutral, positive, and negative particles'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+CSZ20679,"To express the distance between the Milky Way galaxy and other galaxies, the most appropriate unit of measurement is the","{'text': array(['meter.', 'kilometer.', 'light-year.', 'astronomical unit.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_182158,A student has just completed a laboratory activity. What is the last action that the student should perform before leaving the lab area?,"{'text': array(['wash hands', 'turn off all equipment', 'put away all glassware',
+       'wash instruments and table tops'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7216668,Students are investigating the effects of different fertilizers on plant growth. Which units would be best to measure the mass of the fertilizer used?,"{'text': array(['meters', 'centimeters', 'grams', 'milligrams'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+MCAS_2001_5_19,Plants use sunlight to make,"{'text': array(['soil.', 'minerals.', 'food.', 'water.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_SC_413631,Which of these correctly identifies the way materials are transported in a plant?,"{'text': array(['Xylem carries water from the roots to the leaves.',
+       'Phloem carries minerals from the roots to the leaves.',
+       'Xylem carries sugars from the flowers to the stems.',
+       'Phloem carries water from the flowers to the stems.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+MCAS_2005_5_10,"When trees develop leaves in the spring, 10 changes occur on the forest floor. Why does the development of leaves cause changes on the forest floor?","{'text': array(['Rainfall increases.', 'Sunlight is reduced.',
+       'Wind speed increases.', 'Animal migration is stopped.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7166145,The circulatory system and the endocrine system work together in the human body. Which describes one way in which these systems interact?,"{'text': array(['taking in oxygen and transporting it to cells of the body',
+       'releasing hormones and transporting them to cells of the body',
+       'absorbing nutrients from food and transporting them to cells in the body',
+       'collecting waste products from the cells and transporting it out of the body'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+MSA_2013_5_6,"A student throws a ball into the air. While the ball travels up, the speed of the ball decreases. What force causes the ball to slow while traveling up?","{'text': array(['electricity', 'gravity', 'magnetism', 'tension'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_SC_405199,Which of these will most likely harm a habitat?,"{'text': array(['planting trees', 'water pollution', 'rainfall', 'sunlight'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+NYSEDREGENTS_2015_8_28,All living and nonliving material is composed of,"{'text': array(['air', 'elements', 'water', 'soil'], dtype=object), 'label': array(['1', '2', '3', '4'], dtype=object)}",2
+Mercury_SC_401777,Which process best explains how the Grand Canyon became so wide?,"{'text': array(['folding', 'erosion', 'deposition', 'sedimentation'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7198188,"As global temperatures increase, certain organisms will be more affected than others. The changes associated with global warming may result in an increase in sea level. Which organisms will be affected most as a result of the change in sea level?","{'text': array(['birds that eat fish from shallow waters',
+       'fish that live in coral reefs in shallow waters',
+       'mammals that swim in cold, deep ocean waters',
+       'crustaceans at the bottom of deep sea ocean waters'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+MCAS_1998_4_11,"A dish of sugar water was left on a window sill. One week later, there were only sugar crystals left in the dish. The water was gone. The best explanation for the appearance of sugar crystals is","{'text': array(['some of the water was absorbed by the dish.',
+       'the air condensed.',
+       'the light shining on the window sill produced more sugar.',
+       'the water evaporated.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_SC_LBS10784,Using a softball bat to hit a softball is an example of using which simple machine?,"{'text': array(['pulley', 'lever', 'inclined plane', 'wheel and axle'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7033548,"When an igneous intrusion comes into contact with surrounding rock, the surrounding rock will","{'text': array(['erode.', 'foliate.', 'precipitate.', 'recrystallize.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_7146195,A research scientist writes a paper on the initial regrowth of a forest after a fire has damaged the entire ecosystem. Which title would be best for the paper?,"{'text': array(['Primary Succession', 'Stable Communities', 'Climax Communities',
+       'Secondary Succession'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+NCEOGA_2013_8_36,Where do plants get most of the energy they need to live and grow?,"{'text': array(['water', 'soil', 'air', 'sunlight'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_SC_415412,Which is a statement about climate?,"{'text': array(['The average temperature yesterday was 15°C.',
+       'The temperature range today was 10°C to 20°C.',
+       'The high temperature tomorrow will be 14°C.',
+       'The average high temperature in May is 20°C.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_7126840,"While on a movie set, a stuntman jumps off the roof of a building. As he falls toward an airbag, what is increasing?","{'text': array(['gravity', 'wind velocity', 'kinetic energy', 'potential energy'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_SC_408362,Jessica wants to see cells in an oak tree leaf. Which tool is best for Jessica to use to see the cells?,"{'text': array(['binoculars', 'microscope', 'reading glasses', 'magnifying glass'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+MDSA_2008_8_35,Biologists conduct investigations to learn about living organisms. Which method helps reduce bias during an investigation?,"{'text': array(['developing a hypothesis after collecting data in the investigation',
+       'limiting the amount of background research before the investigation',
+       'designing an investigation with repeated trials during the investigation',
+       'obtaining other opinions concerning what should happen during the investigation'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+NYSEDREGENTS_2015_8_21,Which factor is most likely to cause the number of rabbits living in an area to increase?,"{'text': array(['less water', 'fewer predators', 'lack of shelter', 'limited food'],
+      dtype=object), 'label': array(['1', '2', '3', '4'], dtype=object)}",2
+VASoL_2008_5_12,"Seeds that remain inactive until the right conditions of light, water, and soil are present are called ___.","{'text': array(['pollen', 'dormant', 'flowers', 'recycled'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_SC_LBS10680,What allows a light bulb to give off light?,"{'text': array(['the current flowing through the wire to the light bulb',
+       'the light bulb giving electrical energy to the battery',
+       'the light bulb generating heat energy',
+       'the battery pushing light through the wire'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+MCAS_2003_5_3,What causes sound?,"{'text': array(['sunlight', 'vibrations', 'x-rays', 'pitch'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B

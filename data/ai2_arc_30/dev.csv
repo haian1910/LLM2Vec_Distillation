@@ -1,0 +1,67 @@
+id,question,choices,answerKey
+MCAS_2000_4_6,Which technology was developed most recently?,"{'text': array(['cellular telephone', 'television', 'refrigerator', 'airplane'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7057260,A student hypothesizes that algae are producers. Which question will best help the student determine if this is correct?,"{'text': array(['Do algae consume other organisms?',
+       'Which organisms consume algae?',
+       'Do algae use sunlight to make food?',
+       'Could an ecosystem survive without algae?'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+ACTAAP_2014_7_6,Soccer players use their muscle systems to kick a ball into a goal. What organ system coordinates the muscles?,"{'text': array(['The nervous system', 'The endocrine system',
+       'The respiratory system', 'The circulatory system'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7122448,Planets in the solar system are in constant motion. What factor has the greatest effect on the orbits of the planets?,"{'text': array(['the size of the planets', 'gravitational pull of the Sun',
+       'the composition of the planets',
+       'electromagnetic radiation from the Sun'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_SC_416516,How is a pond different from a lake?,"{'text': array(['Ponds have moving water.', 'Ponds are smaller and shallower.',
+       'Ponds are not surrounded by land.',
+       'Ponds have a different amount of salt.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+MCAS_2016_8_3,A substance with a mass of 10 g is heated to produce two new substances. The mass of the first new substance is 9.3 g and the mass of the second new substance is 0.7 g. Which of the following is best demonstrated by this example?,"{'text': array(['heat transfer', 'physical change', 'law of conservation of mass',
+       'law of conservation of energy'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_7030153,"The cilia in the respiratory system are responsible for preventing dirt and mucus from entering the bronchial tubes and lungs. If the cilia are damaged, the person's bronchial tubes and lungs are most likely to","{'text': array(['close to prevent further damage.', 'stop producing mucus.',
+       'become clogged.', 'become efficient.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+AKDE&ED_2012_8_43,Which two traits would best distinguish a bird from other vertebrates?,"{'text': array(['fur and wings', 'gills and feet', 'feathers and wings',
+       'moist skin and feet'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+NYSEDREGENTS_2014_8_10,A green plant absorbs light. A frog eats flies. These are both examples of how organisms,"{'text': array(['obtain energy', 'escape predators', 'produce offspring',
+       'excrete waste'], dtype=object), 'label': array(['1', '2', '3', '4'], dtype=object)}",1
+Mercury_SC_LBS10938,Which of these scientific advances occurred first?,"{'text': array(['the invention of the telescope', 'the building of submarines',
+       'the generation of electricity', 'the breeding of plants'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+ACTAAP_2007_7_19,Which instrument measures atmospheric pressure?,"{'text': array(['barometer', 'hygrometer', 'thermometer', 'magnetometer'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_176873,Which of the following is produced during the process of cellular respiration?,"{'text': array(['carbon dioxide', 'sodium chloride', 'oxygen', 'sugar'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_SC_LBS10170,An anemometer is a tool that measures,"{'text': array(['wind direction.', 'wind speed.', 'air pressure.',
+       'air temperature.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_400978,"The element cesium, Cs, is an alkali metal. Which chemical formula represents a cesium compound that is likely to exist?","{'text': array(['CsCl', 'CsCl_{2}', 'CsO', 'CsO_{2}'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7185220,The cells of a plant help the plant maintain its life functions. What part of a plant cell has the function of producing sugar in the presence of sunlight?,"{'text': array(['chloroplast', 'cytoplasm', 'mitochondria', 'nucleus'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7213378,A sample of sulfur forms crystals when it,"{'text': array(['melts.', 'freezes.', 'evaporates.', 'condenses.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7241343,"When a person is infected with the influenza virus, the immune system defends the body through a cell-mediated immune response. Which immune cell is responsible for protecting the body from the influenza virus infection?","{'text': array(['phagocytes', 'B lymphocytes', 'helper T lymphocytes',
+       'cytotoxic T lymphocytes'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+TIMSS_1995_8_J5,Which form of solar radiation causes sunburn?,"{'text': array(['Visible', 'Ultraviolet', 'Infrared', 'X-rays', 'Radio waves'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E'], dtype=object)}",B
+Mercury_7271583,About 75% of the world's active volcanoes are the result of tectonic activity around which plate?,"{'text': array(['North American Plate', 'African Plate', 'Pacific Plate',
+       'Nazca Plate'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_412415,Which of the following is the most accurate measurement for the length of an object that is actually 15.0 m long?,"{'text': array(['15.35 m', '15.2 m', '14.55 m', '14.5 m'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_SC_400175,"After a rainfall, which process in the water cycle draws the water back up into the air?","{'text': array(['condensation', 'evaporation', 'circulation', 'precipitation'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7006213,"When a person speaks, the type of wave produced can be described as all these except","{'text': array(['transverse.', 'mechanical.', 'compression.', 'longitudinal.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+NCEOGA_2013_5_28,Bill stands in a swimming pool and notices that the water around his feet is a lot cooler than the water near the surface. Which process causes this difference in temperature?,"{'text': array(['convection', 'evaporation', 'radiation', 'conduction'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_SC_407569,Andy adds a small amount of water to sand and makes shapes with the wet sand. Which of these best describes the wet sand?,"{'text': array(['a mixture', 'a solution', 'an element', 'a compound'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+MCAS_1999_8_35,To observe materials up close and in greater detail we use,"{'text': array(['gripping tools.', 'optical tools.', 'cutting tools.',
+       'polishing tools.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+ACTAAP_2009_5_14,Joyce is conducting a traffic survey and needs to find out how many cars cross the crosswalk in the morning before the school bell rings. How should she collect this data?,"{'text': array(['Make a tally chart', 'Draw a pictograph',
+       'Take a picture of each passing car',
+       ""Write down the cars' license plate numbers""], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7112788,A student conducts an experiment to determine the average size of acorn that squirrels eat. The student gave several different sizes of acorns to a squirrel. Which action would most likely improve the results?,"{'text': array(['change the food source', 'use more than one squirrel',
+       'increase the number of students',
+       'shorten the period of observation'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7137463,"India is in the Northern Hemisphere and Australia is in the Southern Hemisphere. In June, it is summer in India and winter in Australia. What is the main reason the seasons are opposite in the two countries?","{'text': array(['because Earth is tilted on its axis',
+       'because the Sun rotates on its axis',
+       'because Earth revolves around the Sun',
+       'because of the distance between the countries'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7008435,What contributes the most to beach erosion?,"{'text': array(['animal activity', 'evaporation', 'precipitation', 'wave action'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_SC_401208,Which type of graph would best display the changes in temperature over a 24 hour period?,"{'text': array(['line graph', 'pictograph', 'circle (pie) graph',
+       'stem-and-leaf graph'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A

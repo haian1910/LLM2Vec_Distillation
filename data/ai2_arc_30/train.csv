@@ -1,0 +1,74 @@
+id,question,choices,answerKey
+Mercury_7220990,Which factor will most likely cause a person to develop a fever?,"{'text': array(['a leg muscle relaxing after exercise',
+       'a bacterial population in the bloodstream',
+       'several viral particles on the skin',
+       'carbohydrates being digested in the stomach'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+MCAS_2007_8_5189,Lichens are symbiotic organisms made of green algae and fungi. What do the green algae supply to the fungi in this symbiotic relationship?,"{'text': array(['carbon dioxide', 'food', 'protection', 'water'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_SC_401169,"When a switch is used in an electrical circuit, the switch can","{'text': array(['cause the charge to build.', 'increase and decrease the voltage.',
+       'cause the current to change direction.',
+       'stop and start the flow of current.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+MCAS_2004_8_27,Which of the following is an example of an assistive device?,"{'text': array(['contact lens', 'motorcycle', 'raincoat', 'coffee pot'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+NYSEDREGENTS_2006_8_10,"Rocks are classified as igneous, metamorphic, or sedimentary according to","{'text': array(['their color', 'their shape', 'how they formed',
+       'the minerals they contain'], dtype=object), 'label': array(['1', '2', '3', '4'], dtype=object)}",3
+Mercury_7013388,A chewable calcium carbonate tablet is a common treatment for stomach discomfort. Calcium carbonate is most likely used as this type of medicine because calcium carbonate,"{'text': array(['has a pleasant flavor.', 'is inexpensive to produce.',
+       'neutralizes digestive acid.', 'occurs naturally in the body.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_7179953,Which two body systems are directly involved in movement?,"{'text': array(['muscular and skeletal', 'digestive and muscular',
+       'skeletal and respiratory', 'respiratory and digestive'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7205118,Which change in the state of water particles causes the particles to become arranged in a fixed position?,"{'text': array(['boiling', 'melting', 'freezing', 'evaporating'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+MCAS_2016_8_13,Earth's core is primarily composed of which of the following materials?,"{'text': array(['basalt', 'iron', 'magma', 'quartz'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7283255,Which of the following events during meiosis contributes most to the variation within a species?,"{'text': array(['pairing of chromosomes', 'creation of haploid gametes',
+       'segregation of alleles', 'separation of chromatids'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+MCAS_2005_5_29,"Which of the following was probably most important in the formation of dark, fertile soil that is good for farming?","{'text': array(['plant decomposition', 'radioactive decay', 'water erosion',
+       'wind erosion'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+MCAS_2001_8_7,"When igneous rock is changed into metamorphic rock, which form of energy is this process?","{'text': array(['heat', 'chemical', 'magnetic', 'light'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_SC_400329,"In humans, the digestion process begins in","{'text': array(['the intestine, with squeezing.',
+       'the mouth, with chewing and saliva.',
+       'the stomach, with churning and acid.',
+       'the esophagus, with pushing towards the stomach.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_SC_407440,Which of these items contains only a solution?,"{'text': array(['a jar of pickles', 'a bottle of juice', 'a bag of peanuts',
+       'a can of mixed fruit'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+MCAS_2016_8_7,"Many natural rock formations change color over time. In Utah, for example, iron oxidized and formed red, orange, and yellow rock. Which of the following is the cause of this change?","{'text': array(['chemical weathering', 'mechanical weathering', 'water erosion',
+       'wind erosion'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+MEA_2016_8_8,"A population of small, plant-eating beetles lives in a forest. About half of the beetles are light brown and the others are dark green. If years of drought cause the area to become dry with few trees, what would the beetle population most likely look like after several generations?","{'text': array(['It would be mostly light brown beetles.',
+       'It would be mostly dark green beetles.',
+       'It would be mostly carnivorous beetles.',
+       'It would be mostly very large beetles.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_SC_400124,A scientist wanting to document a change in a river's flow pattern should observe a river over a period of,"{'text': array(['days.', 'weeks.', 'months.', 'years.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+Mercury_405944,Automobile engines built today are designed to be gas efficient. Gas-efficient engines most likely affect a city by reducing,"{'text': array(['air pollution.', 'heat pollution.', 'noise pollution.',
+       'light pollution.'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_SC_405129,"A student in an empty classroom shouts, ""Hello!"" Which best explains what the student hears after the shout?","{'text': array(['an increased loudness of sound', 'a reflection of sound',
+       'an increased frequency of sound', 'a refraction of sound'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+NYSEDREGENTS_2011_8_4,Which type of energy in gasoline is transformed into mechanical energy in a motorcycle engine?,"{'text': array(['chemical', 'nuclear', 'magnetic', 'electrical'], dtype=object), 'label': array(['1', '2', '3', '4'], dtype=object)}",1
+Mercury_SC_406063,A student standing near a campfire feels warmer as the fire grows. Which process most likely transfers heat from the campfire to the student?,"{'text': array(['conduction', 'convection', 'radiation', 'transformation'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",C
+Mercury_412056,"In snapdragon plants, red flowers are dominant to white flowers. When red-flowered plants are crossed with white-flowered plants, pink flowers are produced. If a researcher wants to produce plants with only white flowers, what color should the parent plants be?","{'text': array(['both red', 'both white', 'one red and one white',
+       'one white and one pink'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7016590,"Scientists use the term ""light year"" to describe","{'text': array(['how fast light travels in space.',
+       'the distance light travels in one year.',
+       'how large the diameters of different stars are.',
+       'the time it takes the Sun to move through the galaxy.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
+Mercury_7148628,Plate movement can form different features on Earth. The movement of tectonic plates can be both a constructive and a destructive force. At which type of plate boundary is new crust formed?,"{'text': array(['convergent', 'subduction', 'transform', 'divergent'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+NYSEDREGENTS_2007_8_7,Which group of organisms can show significant trait changes in the shortest period of time?,"{'text': array(['bacteria', 'birds', 'fish', 'reptiles'], dtype=object), 'label': array(['1', '2', '3', '4'], dtype=object)}",1
+CSZ10336,Peach trees have sweet-smelling blossoms and produce rich fruit. What is the main purpose of the flowers of a peach tree?,"{'text': array(['to attract bees for pollination', 'to create flower arrangements',
+       'to protect the tree from disease', 'to feed migratory birds'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7109393,A group of students are researching changes in climate in their region. Which of these would best provide evidence of changes in temperature and rainfall over a period of years?,"{'text': array(['tree rings', 'pollen samples', 'harvest production',
+       'carbon dating'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_SC_LBS10953,Which of these would help to prevent infections from occurring in small cuts and scrapes?,"{'text': array(['apply a cold ice pack', 'raise the injured area',
+       'apply pressure to stop bleeding',
+       'wash the area with warm, soapy water'], dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",D
+NCEOGA_2013_5_8,Which best describes why winds at the beach change direction between day and night?,"{'text': array(['because the temperatures over land and over water change',
+       'because warm air over land sinks and stays in place over land',
+       'because cool air rises and is replaced by warm air from the ocean',
+       'because cool air sinks and stays in place over land'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",A
+Mercury_7017763,Soil erosion can be best prevented by,"{'text': array(['removing grass from the steepest slope.',
+       'building terraces into the sides of a slope.',
+       'heavily watering the vegetation on the slope.',
+       'increasing the slope of the land by adding more soil.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D'], dtype=object)}",B
