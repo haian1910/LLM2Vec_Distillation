@@ -1,0 +1,69 @@
+id,question,choices,answerKey,fact1,fact2,combinedfact,formatted_question
+3C44YUNSI1OBFBB8D36GODNOZN9DPA,What type of birth do therian mammals have?,"{'text': array(['Anthax', 'under water', 'uterus', 'wombs', 'two', 'moles', 'live',
+       'embryo'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What type of birth do therian mammals have? (A) Anthax (B) under water (C) uterus (D) wombs (E) two (F) moles (G) live (H) embryo
+3B1NLC6UGZVERVLZFT7OUYQLD1SGPZ,By what time had mouse-sized viviparous mammals evolved?,"{'text': array(['Corvidae', 'arthropods', 'birds', 'backbones', 'keratin',
+       'Jurassic', 'front paws', 'Parakeets.'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,By what time had mouse-sized viviparous mammals evolved? (A) Corvidae (B) arthropods (C) birds (D) backbones (E) keratin (F) Jurassic (G) front paws (H) Parakeets.
+3QRYMNZ7FYGITFVSJET3PS0F4S0NT9,What does a plant's skin do?,"{'text': array(['Reduced friction', 'causes infection', 'vital to a good life',
+       'prevents water loss', 'camouflage from consumers',
+       'Protection against predators', 'spur the growth of the plant',
+       'a smooth surface'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What does a plant's skin do? (A) Reduced friction (B) causes infection (C) vital to a good life (D) prevents water loss (E) camouflage from consumers (F) Protection against predators (G) spur the growth of the plant (H) a smooth surface
+336KAV9KYQRILF5T71II5LPW6IJ2YE,"The layer of protection for preventing water loss, abrasions, and infections is located on the:","{'text': array(['large back muscles', 'upper epidermis', 'therian mammals',
+       'underground', 'calcium and protein', 'A hinged joint',
+       'vital to a good life', 'upper arm muscles'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,"The layer of protection for preventing water loss, abrasions, and infections is located on the: (A) large back muscles (B) upper epidermis (C) therian mammals (D) underground (E) calcium and protein (F) A hinged joint (G) vital to a good life (H) upper arm muscles"
+3NJM2BJS4W51AJ5UD7B54756E49CPJ,"What is protected, preventing water loss, abrasions, infections, and damage from toxins?","{'text': array(['VOCs and NOx', 'protection', 'penguins', 'keratin', 'hornworts',
+       'Shelter', 'the nail', 'organisms'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,"What is protected, preventing water loss, abrasions, infections, and damage from toxins? (A) VOCs and NOx (B) protection (C) penguins (D) keratin (E) hornworts (F) Shelter (G) the nail (H) organisms"
+33FOTY3KEMKYTRMSS50F3BN8CL3C1A,The cuticle shields the entry to prevent?,"{'text': array(['contact', 'removal', 'disease', 'influenza', 'Fractures',
+       'separating', 'Ionization', 'breaks'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,The cuticle shields the entry to prevent? (A) contact (B) removal (C) disease (D) influenza (E) Fractures (F) separating (G) Ionization (H) breaks
+33OOO72IVHKZ2BY1UOKP9H631AGCTE,Getting food by killing requires what?,"{'text': array(['backbones', 'buying milk', 'seeing prey', 'eating vegetarian',
+       'microorganisms', 'digestion', 'protease', 'ordering out'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Getting food by killing requires what? (A) backbones (B) buying milk (C) seeing prey (D) eating vegetarian (E) microorganisms (F) digestion (G) protease (H) ordering out
+3JBT3HLQF81EICG45LVDF56RLSYPZ8,What would make hunting more difficult for an animal?,"{'text': array(['backbones', 'Not having tastebuds', 'A hinged joint',
+       'Having claws', 'Pollution', 'Being blind', 'The cold desert.',
+       'Having wings'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What would make hunting more difficult for an animal? (A) backbones (B) Not having tastebuds (C) A hinged joint (D) Having claws (E) Pollution (F) Being blind (G) The cold desert. (H) Having wings
+3QAVNHZ3EM3NQJTY11M7HV6Y7ZOLA7,hunting requires seeing,"{'text': array(['crocodiles', 'Microscope', 'obstacles', 'its size', 'an animal',
+       'dead trees', 'camouflage', 'otters'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,hunting requires seeing (A) crocodiles (B) Microscope (C) obstacles (D) its size (E) an animal (F) dead trees (G) camouflage (H) otters
+3TMSXRD2X6Z77PSX9W0GF5UB1E9W1E,What animal can hunt at night?,"{'text': array(['food', 'fish', 'bird', 'owl', 'deer', 'cows', 'rhinos', 'frog'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What animal can hunt at night? (A) food (B) fish (C) bird (D) owl (E) deer (F) cows (G) rhinos (H) frog
+3MB8LZR5BFST2W2KDSZWB99UDQSLKR,"What allows predators to attack, kill and eat?","{'text': array(['humans', 'sourcing', 'eating', 'camouflage', 'hunting',
+       'Insects.', 'arthropods', 'finding'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,"What allows predators to attack, kill and eat? (A) humans (B) sourcing (C) eating (D) camouflage (E) hunting (F) Insects. (G) arthropods (H) finding"
+39RP059MEHSCFBGB7RNICJ5TQAZMBI,what requires being able to see prey?,"{'text': array(['predators', 'transpiration', 'Gecko', 'survival', 'Insects.',
+       'reptiles', 'other prey', 'sharks'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,what requires being able to see prey? (A) predators (B) transpiration (C) Gecko (D) survival (E) Insects. (F) reptiles (G) other prey (H) sharks
+37UQDCYH6XU83M7U82CTUD2AYDLV7N,What helps humans hunt?,"{'text': array(['birds', 'beards', 'footballs', 'moles', 'Gecko', 'fish', 'eyes',
+       'bears'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What helps humans hunt? (A) birds (B) beards (C) footballs (D) moles (E) Gecko (F) fish (G) eyes (H) bears
+3NXNZ5RS1AWA6FUR517X2VDD7TN97M,What does a cat require to see prey?,"{'text': array(['food', 'vision', 'energy', 'backbones', 'feet', 'nose',
+       'proteins', 'smell'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What does a cat require to see prey? (A) food (B) vision (C) energy (D) backbones (E) feet (F) nose (G) proteins (H) smell
+358010RM5ES2I1DLQFGROCFY4NLVX5,What is important to hunt prey?,"{'text': array(['animals', 'vision', 'proteins', 'Insects.', 'birds', 'texture',
+       'taste', 'heat'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What is important to hunt prey? (A) animals (B) vision (C) proteins (D) Insects. (E) birds (F) texture (G) taste (H) heat
+3UNH76FOCS48SJ9MHJ12KU3UGCXMY4,What do birds have that are of a bigger size?,"{'text': array(['moles', 'skulls', 'teeth', 'backbones', 'pouches', 'scales',
+       'uterus', 'fins'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What do birds have that are of a bigger size? (A) moles (B) skulls (C) teeth (D) backbones (E) pouches (F) scales (G) uterus (H) fins
+3K772S5NP8AOU0RKQL9VLM3IHKMEHD,Creatures with feathers and wings have a large brain relative to the size of their what?,"{'text': array(['fur', 'eyes', 'lemurs', 'bats', 'humans', 'body', 'brain',
+       'wings'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Creatures with feathers and wings have a large brain relative to the size of their what? (A) fur (B) eyes (C) lemurs (D) bats (E) humans (F) body (G) brain (H) wings
+30BUDKLTXDUCE77PPJ8MWP0SCBYE5Z,Seagulls brains are large in relation to their,"{'text': array(['nucleus', 'complex', 'vision', 'bodies', 'evolution', 'Jaws',
+       'backbones', 'crucial'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Seagulls brains are large in relation to their (A) nucleus (B) complex (C) vision (D) bodies (E) evolution (F) Jaws (G) backbones (H) crucial
+3K772S5NP8AOU0RKQL9VLM3ID8VEHU,Which animal can go a long time between meals?,"{'text': array(['A cat', 'moles', 'Albatross', 'arthropods', 'A mouse', 'A snake',
+       'arachnids', 'A human'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Which animal can go a long time between meals? (A) A cat (B) moles (C) Albatross (D) arthropods (E) A mouse (F) A snake (G) arachnids (H) A human
+32KTQ2V7RDETRI1E979MLDA33ETM9E,Several species of what can go several weeks between meals?,"{'text': array(['snakes', 'a frog', 'birds', 'bacteria', 'beetles', 'insects',
+       'lemurs', 'rocks'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Several species of what can go several weeks between meals? (A) snakes (B) a frog (C) birds (D) bacteria (E) beetles (F) insects (G) lemurs (H) rocks
+3W92K5RLWUGTGITBK9XWWTOE9B1V5T,What can some snakes go several weeks without?,"{'text': array(['water', 'oxygen', 'rabies', 'calcium', 'health', 'glands',
+       'meals', 'life'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What can some snakes go several weeks without? (A) water (B) oxygen (C) rabies (D) calcium (E) health (F) glands (G) meals (H) life
+3K2755HG5S2ZOYMEZ0ABCJ9KZJIFDB,What can geckos go several weeks in between?,"{'text': array(['two', 'keratin', 'meals', 'moles', 'germination', 'Anthax',
+       '12-18', 'a frog'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What can geckos go several weeks in between? (A) two (B) keratin (C) meals (D) moles (E) germination (F) Anthax (G) 12-18 (H) a frog
+3X31TUMD7XLRWVGY5ITE6UDV7KY1LD,What can go several weeks between meals?,"{'text': array(['therian mammals', 'amphibians', 'eagles', 'a frog', 'alligators',
+       'arthropods', 'VOCs and NOx', 'macaws'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What can go several weeks between meals? (A) therian mammals (B) amphibians (C) eagles (D) a frog (E) alligators (F) arthropods (G) VOCs and NOx (H) macaws
+3T111IHZ5EPKOYE6EF537C4DM0V9R3,Some species of what kind of animal can go several weeks between eating food?,"{'text': array(['a frog', 'insects', 'Insects.', 'fish', 'dragonflies', 'birds',
+       'mammals', 'reptiles'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Some species of what kind of animal can go several weeks between eating food? (A) a frog (B) insects (C) Insects. (D) fish (E) dragonflies (F) birds (G) mammals (H) reptiles
+31JLPPHS2UTVCJXA5ENPM4WMBNEO39,Some species of reptiles can go weeks without,"{'text': array(['death', 'contact', 'H20', 'closing their eyes', 'breathing',
+       'slithering', 'eating', 'rain'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Some species of reptiles can go weeks without (A) death (B) contact (C) H20 (D) closing their eyes (E) breathing (F) slithering (G) eating (H) rain
+3C2NJ6JBKAGO9G1F0Z97O5RPF4U2NS,what can go several weeks between meals?,"{'text': array(['humans', 'amphibians', 'lunch', 'crocodiles', 'macaws', 'a frog',
+       'eagles', 'fish'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,what can go several weeks between meals? (A) humans (B) amphibians (C) lunch (D) crocodiles (E) macaws (F) a frog (G) eagles (H) fish
+3L2IS5HSFAHXTSAHJJJDUOMHYGTUNO,Some species of cold blooded animals can go how long between meals?,"{'text': array(['chondrichthyes', 'Avoid being eaten', 'Several weeks',
+       'Time passing', 'desert lizards', 'physical properties',
+       'therian mammals', 'arthropods'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Some species of cold blooded animals can go how long between meals? (A) chondrichthyes (B) Avoid being eaten (C) Several weeks (D) Time passing (E) desert lizards (F) physical properties (G) therian mammals (H) arthropods
+32RIADZISS3VS787C99HGEYTM3S4S4,Some species of amphibians are fed when?,"{'text': array(['contact', 'Stomata closing', 'properly stored', 'once a week',
+       'less friction', 'progesterone', 'underground', 'good nutrition.'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Some species of amphibians are fed when? (A) contact (B) Stomata closing (C) properly stored (D) once a week (E) less friction (F) progesterone (G) underground (H) good nutrition.
+3QIYRE09Y3GHKVJJHV9TJMHKNSTN1X,What can go several weeks between meals?,"{'text': array(['arthropods', 'mammals', 'macaws', 'hornworts', 'some snakes',
+       'eagles', 'a frog', 'VOCs and NOx'], dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,What can go several weeks between meals? (A) arthropods (B) mammals (C) macaws (D) hornworts (E) some snakes (F) eagles (G) a frog (H) VOCs and NOx
+3A1COHJ8NJU7LZHTDINVTC7WZFVH8D,Progesterone is used in what?,"{'text': array(['hydration of cells', 'digestion', 'reproduction', 'VOCs and NOx',
+       'respiration', 'fight or flight', 'Balanced', 'ages 12-18'],
+      dtype=object), 'label': array(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], dtype=object)}",,,,,Progesterone is used in what? (A) hydration of cells (B) digestion (C) reproduction (D) VOCs and NOx (E) respiration (F) fight or flight (G) Balanced (H) ages 12-18
