@@ -1,5 +1,6 @@
 #! /bin/bash
 GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,13 +16,13 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/mnt/bn/magellan-product-llm-data/tu.vu/matrix_one/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
+TEACHER_MODEL_PATH=/mnt/bn/magellan-product-llm-data/tu.vu/matrix_one/LLM2Vec_Distillation/outputs/LLM2Vec/sft/criterion=cross_entropy__lora-rank=16-alpha=32-dropout=0.1-bf16__epoch=2__bsz=8x1x1=8__lr=0.001/epoch2_step8_loss10.9917
 # data
-DATA_DIR="${BASE_PATH}/data/yelp/"
+DATA_DIR="${BASE_PATH}/data/yelp_30/"
 NUM_LABELS=5
 # task
 TASK="dskd_cma_att_mined_cka"
@@ -115,5 +116,4 @@ export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
 
-${CMD} \
->> ${SAVE_PATH}/train.log 2>&1 &
+${CMD}

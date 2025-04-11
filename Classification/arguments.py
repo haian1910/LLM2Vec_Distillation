@@ -48,7 +48,6 @@ def add_runtime_args(parser: argparse.ArgumentParser):
 
     group.add_argument("--task", type=str, default=None)
     group.add_argument("--do-train", action="store_true")
-    group.add_argument("--do-valid", action="store_true")
     group.add_argument("--do-eval", action="store_true")
     group.add_argument('--base-path', type=str, default=None, help='Path to the project base directory.')
     group.add_argument('--load', type=str, default=None,

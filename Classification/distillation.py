@@ -33,7 +33,7 @@ from Classification.utils import (
 from Classification.criterions import build_criterion
 # from rouge_metric import compute_metrics
 
-torch.set_num_threads(4)
+torch.set_num_threads(4) # giới hạn số lượng thread torch sử dụng cho cpu
 
 def prepare_dataset(args, distiller):
     data = {}
@@ -118,7 +118,7 @@ def finetune(
         "step_time": []
     }
     model_list = []
-
+    
     for epoch in range(args.num_epochs):
         sampler.set_epoch(epoch)
         logging_output["epoch"] += 1
@@ -156,23 +156,9 @@ def finetune(
         if args.save_dir and (epoch + 1) % args.save_interval == 0:
             if (epoch + 1) % args.eval_interval == 0:
                 log_rank("Evaluating before saving model...")
-                eval_loss, eval_accu, eval_precision, eval_recall = evaluate(
-                    args, 
-                    tokenizer, 
-                    model.module.student_model, 
-                    dataset["dev"], 
-                    "dev", 
-                    device
-                )
+                eval_loss, eval_accu, eval_precision, eval_recall = evaluate( args, tokenizer, model.module.student_model, dataset["dev"], "dev", device)
                 if "test" in dataset:
-                    _, _, _, _ = evaluate(
-                        args, 
-                        tokenizer, 
-                        model.module.student_model, 
-                        dataset["test"], 
-                        "test", 
-                        device
-                    )
+                    _, _, _, _ = evaluate( args, tokenizer, model.module.student_model, dataset["test"], "test", device)
                 ckpt_name = "epoch{}_step{}_loss{:.4f}".format(
                     epoch + 1, 
                     logging_output["global_step"], 
@@ -250,8 +236,7 @@ def finetune(
     ))
 
 @torch.no_grad
-
-def evaluate(args, tokenizer, model, dataset, split, device):
+def evaluate(args, tokenizer, student_model, dataset, split, device):
     dp_world_size = dist.get_world_size()
     dp_rank = dist.get_rank()
     dp_group = None
@@ -274,7 +259,7 @@ def evaluate(args, tokenizer, model, dataset, split, device):
         collate_fn=dataset.collate
     )
 
-    model.eval()
+    student_model.eval()
     eval_info = {
         "loss": 0.0,
         "sample_num": 0,
@@ -283,11 +268,11 @@ def evaluate(args, tokenizer, model, dataset, split, device):
 
     all_preds = []
     all_labels = []
-
+    local_loss = 0
     for input_batch, output_batch in dataloader:
         dataset.move_to_device([input_batch, output_batch], device)
 
-        outputs = model(
+        outputs = student_model(
             input_batch["input_ids"],
             attention_mask=input_batch["attention_mask"],
             position_ids=input_batch.get("position_ids", None)
@@ -299,40 +284,40 @@ def evaluate(args, tokenizer, model, dataset, split, device):
         loss = loss_func(logits, labels)
 
         preds = logits.argmax(dim=-1)
-        correct = (preds == labels).sum().item()
 
         all_preds.append(preds)
         all_labels.append(labels)
-
-        sample_num = labels.size(0)
+        local_loss += loss
         
-        eval_info["loss"] += loss.item()
-        eval_info["sample_num"] += sample_num
-        eval_info["correct_samples"] += correct
-
     all_preds = torch.cat(all_preds, dim=0)
     all_labels = torch.cat(all_labels, dim=0)
 
+
     all_preds_gathered = [torch.zeros_like(all_preds) for _ in range(dp_world_size)]
     all_labels_gathered = [torch.zeros_like(all_labels) for _ in range(dp_world_size)]
+    
     dist.all_gather(all_preds_gathered, all_preds, group=dp_group)
     dist.all_gather(all_labels_gathered, all_labels, group=dp_group)
+   
+    all_dp_loss = [torch.zeros_like(local_loss) for _ in range(dp_world_size)]
+    dist.all_gather(all_dp_loss, local_loss, group=dp_group)
+
+    all_dp_loss = sum(all_dp_loss).item()
 
     all_preds = torch.cat(all_preds_gathered, dim=0)
     all_labels = torch.cat(all_labels_gathered, dim=0)
 
-    if dp_rank == 0:
-        all_preds_np = all_preds.cpu().numpy()
-        all_labels_np = all_labels.cpu().numpy()
+    all_preds_np = all_preds.cpu().numpy()
+    all_labels_np = all_labels.cpu().numpy()
 
-        precision = precision_score(all_labels_np, all_preds_np, average='macro')
-        recall = recall_score(all_labels_np, all_preds_np, average='macro')
+    precision = precision_score(all_labels_np, all_preds_np, average='macro')
+    recall = recall_score(all_labels_np, all_preds_np, average='macro')
 
-        eval_info["precision"] = round(precision, 6)
-        eval_info["recall"] = round(recall, 6)
+    eval_info["precision"] = round(precision, 6)
+    eval_info["recall"] = round(recall, 6)
 
-    eval_info["loss"] /= eval_info["sample_num"]
-    eval_info["accuracy"] = eval_info["correct_samples"] / eval_info["sample_num"]
+    eval_info["loss"] = all_dp_loss / len(all_preds)
+    eval_info["accuracy"] = (all_preds==all_labels).sum().item() / len(all_preds)
 
     for key in eval_info:
         if isinstance(eval_info[key], float):
@@ -340,9 +325,9 @@ def evaluate(args, tokenizer, model, dataset, split, device):
 
     print(f"{split} | {eval_info}")
 
-    model.train()
-    return eval_info["loss"], eval_info["accuracy"], eval_info.get("precision", 0.0), eval_info.get("recall", 0.0)
+    student_model.train()
 
+    return eval_info["loss"], eval_info["accuracy"], eval_info.get("precision", 0.0), eval_info.get("recall", 0.0)
 
 def main():
     torch.backends.cudnn.enabled = False
@@ -364,7 +349,6 @@ def main():
 
     #ds_config["gradient_accumulation_steps"] = args.gradient_accumulation_steps
     ds_config["gradient_accumulation_steps"] = 1
-
     ds_config["train_micro_batch_size_per_gpu"] = args.batch_size
     ds_config["gradient_clipping"] = args.clip_grad
     ds_config["steps_per_print"] = 10000000
@@ -387,7 +371,6 @@ def main():
     log_rank("Initializing a distiller for knowledge distillation...")
     distiller = Distiller(args, device)
     dataset = prepare_dataset(args, distiller)
-    
     dp_world_size = dist.get_world_size()
     
     if args.do_train:
@@ -427,17 +410,9 @@ def main():
     
     if args.do_train:
         finetune(args, distiller.student_tokenizer, model, optimizer, lr_scheduler, dataset, device)
-   
+       
     if args.do_eval:
-        evaluate(
-            args, 
-            distiller.student_tokenizer, 
-            model, 
-            dataset["test"], 
-            "test", 
-            0, 
-            device
-        )
+        evaluate(args, distiller.student_tokenizer, model.module.student_model, dataset["test"], "test", device)
         
     
 if __name__ == "__main__":

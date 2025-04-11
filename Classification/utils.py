@@ -106,6 +106,7 @@ def init_distributed_ds(args):
 
     if args.local_rank is not None:
         device = args.local_rank
+    
     torch.cuda.set_device(device)
 
     deepspeed.init_distributed(timeout=timedelta(minutes=30))
@@ -348,7 +349,7 @@ def get_optimizer(args, model):
 
 def get_learning_rate_scheduler(args, optimizer):
     if args.total_iters is None:
-        args.total_iters = args.train_iters_per_epoch * args.epochs
+        args.total_iters = args.train_iters_per_epoch * args.num_epochs
     if args.lr_decay_style == "constant":
         lr_scheduler = get_constant_schedule_with_warmup(
             optimizer,
