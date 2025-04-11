@@ -1,131 +1,157 @@
 import torch
 import os
 import pandas as pd
+import numpy as np
 from torch.utils.data import Dataset
 import torch.distributed as dist
 from tqdm import tqdm
 from QuestionAnswer.utils import log_rank
-from transformers import BertTokenizer
-from datasets import Dataset
+from typing import Dict, Optional
+from transformers import AutoTokenizer
 
 class DistillDataset(Dataset):
     def __init__(
         self,
         args,
         split: str,
-        student_tokenizer=None,
-        teacher_tokenizer=None,
-        num_choices: int = 8,
+        student_tokenizer: AutoTokenizer,
+        teacher_tokenizer: Optional[AutoTokenizer] = None,
     ):
         self.args = args
         self.split = split
         self.student_tokenizer = student_tokenizer
         self.teacher_tokenizer = teacher_tokenizer
         self.max_length = args.max_length or 256
-        self.num_choices = num_choices
+        self.num_choices = args.num_labels  # e.g., 8 choices
 
         self.dataset = self._load_and_process_data()
 
     def __len__(self):
         return len(self.dataset)
-   
+
     def __getitem__(self, index):
         return self.dataset[index]
-    
+
     def _load_and_process_data(self):
+        dataset = []
         path = os.path.join(self.args.data_dir, f"{self.split}.csv")
-        if not os.path.exists(path):
+
+        if os.path.exists(path):
+            df = pd.read_csv(path)
+            log_rank(f"Columns in {path}: {df.columns.tolist()}")
+            if not all(col in df.columns for col in ['question', 'choices', 'answerKey']):
+                raise ValueError(f"CSV file {path} must contain 'question', 'choices', and 'answerKey' columns")
+
+            log_rank("Processing dataset for multiple-choice question answering...")
+
+            for _, row in tqdm(df.iterrows(), total=len(df), disable=(dist.get_rank() != 0)):
+                question = row['question']
+                # Parse choices (assuming choices is a string like "array([{'text': 'choice1', 'label': 'A'}, ...])")
+                try:
+                    # Simplified parsing; adjust based on actual 'choices' format
+                    choices_str = row['choices']
+                    text_start = choices_str.find("'text':") + 7
+                    text_end = choices_str.find("'label':")
+                    text_content = choices_str[text_start:text_end].strip().strip("array([").strip("],").strip()
+                    choices = [s.strip().strip("'\"") for s in text_content.split(",") if s.strip()]
+                    if len(choices) != self.num_choices:
+                        log_rank(f"Warning: Expected {self.num_choices} choices, got {len(choices)} for question: {question}")
+                        continue
+                except Exception as e:
+                    log_rank(f"Error parsing choices for question {question}: {e}")
+                    continue
+
+                # Map answerKey to index (e.g., 'A' -> 0, 'B' -> 1, etc.)
+                answer_key = row['answerKey']
+                label = ord(answer_key) - ord('A') if answer_key and answer_key.isalpha() else -1
+                if label < 0 or label >= self.num_choices:
+                    log_rank(f"Invalid answerKey {answer_key} for question: {question}")
+                    continue
+
+                # Tokenize each question-choice pair for student
+                student_input_ids_list = []
+                for choice in choices:
+                    input_text = f"{question} {choice}"
+                    student_input_ids = self.student_tokenizer.encode(
+                        input_text,
+                        add_special_tokens=True,
+                        max_length=self.max_length,
+                        truncation=True
+                    )
+                    student_input_ids_list.append(student_input_ids)
+
+                tokenized_data = {
+                    "student_input_ids": student_input_ids_list,  # List of num_choices token sequences
+                    "label": int(label)
+                }
+
+                # Tokenize for teacher if provided
+                if self.teacher_tokenizer:
+                    teacher_input_ids_list = []
+                    for choice in choices:
+                        input_text = f"{question} {choice}"
+                        teacher_input_ids = self.teacher_tokenizer.encode(
+                            input_text,
+                            add_special_tokens=True,
+                            max_length=self.max_length,
+                            truncation=True
+                        )
+                        teacher_input_ids_list.append(teacher_input_ids)
+                    tokenized_data["teacher_input_ids"] = teacher_input_ids_list
+
+                dataset.append(tokenized_data)
+            return dataset
+        else:
             raise FileNotFoundError(f"No such file named {path}")
 
-        # Load CSV into a Hugging Face Dataset
-        df = pd.read_csv(path)
-        log_rank(f"Columns in {path}: {df.columns.tolist()}")
-        if not all(col in df.columns for col in ['question', 'choices', 'answerKey']):
-            raise ValueError(f"CSV file {path} must contain 'question', 'choices', and 'answerKey' columns")
-        
-        dataset = Dataset.from_pandas(df)
+    def _process_multiple_choice(
+        self, i, samp, model_data, no_model_data
+    ):
+        # Process student inputs
+        for j, input_ids in enumerate(samp["student_input_ids"]):
+            input_len = min(len(input_ids), self.max_length)
+            model_data["input_ids"][i, j, :input_len] = torch.tensor(input_ids[:input_len], dtype=torch.long)
+            model_data["attention_mask"][i, j, :input_len] = 1.0
 
-        # Map answerKey to index
-        def map_answer_to_index(example):
-            answer_key = example['answerKey']
-            index = ord(answer_key) - ord('A') if answer_key else -1  # A->0, B->1, ..., H->7, or -1 if empty
-            return {'label': index}
+        no_model_data["labels"][i] = torch.tensor(samp["label"], dtype=torch.long)
 
-        dataset = dataset.map(map_answer_to_index)
+        # Process teacher inputs if available
+        if "teacher_input_ids" in samp:
+            for j, t_input_ids in enumerate(samp["teacher_input_ids"]):
+                t_input_len = min(len(t_input_ids), self.max_length)
+                model_data["teacher_input_ids"][i, j, :t_input_len] = torch.tensor(t_input_ids[:t_input_len], dtype=torch.long)
+                model_data["teacher_attention_mask"][i, j, :t_input_len] = 1.0
 
-        # Preprocess and tokenize
-        def preprocess_function(examples):
-            questions = examples['question']
-            choices_str = examples['choices']
-
-            # Extract 'text' list from choices string
-            choices = []
-            for choice_str in choices_str:
-                # Simple string parsing: extract content after 'text': and before 'label'
-                text_start = choice_str.find("'text':") + 7
-                text_end = choice_str.find("'label':")
-                text_content = choice_str[text_start:text_end].strip().strip("array([").strip("],").strip()
-                choice_texts = [s.strip().strip("'\"") for s in text_content.split(",") if s.strip()]
-                choices.append(choice_texts)
-
-            # Repeat question for each of the 8 choices
-            questions = [[q] * self.num_choices for q in questions]
-            questions_flat = [item for sublist in questions for item in sublist]
-            choices_flat = [item for sublist in choices for item in sublist]
-
-            # Tokenize
-            inputs = self.student_tokenizer(
-                questions_flat,
-                choices_flat,
-                truncation=True,
-                padding='max_length',
-                max_length=self.max_length,
-                return_tensors='pt'
-            )
-
-            # Reshape to batch_size x num_choices
-            input_ids = [inputs['input_ids'][i:i+8].tolist() for i in range(0, len(inputs['input_ids']), 8)]
-            attention_mask = [inputs['attention_mask'][i:i+8].tolist() for i in range(0, len(inputs['attention_mask']), 8)]
-            token_type_ids = [inputs['token_type_ids'][i:i+8].tolist() for i in range(0, len(inputs['token_type_ids']), 8)]
-
-            return {
-                'input_ids': input_ids,
-                'attention_mask': attention_mask,
-                'token_type_ids': token_type_ids,
-                'labels': examples['label']
-            }
-
-        dataset = dataset.map(preprocess_function, batched=True)
-        
-        # Convert to list of dicts for PyTorch Dataset
-        return dataset
+    def move_to_device(self, datazip, device):
+        for data in datazip:
+            for k in data:
+                if isinstance(data[k], torch.Tensor):
+                    data[k] = data[k].to(device)
 
     def collate(self, samples):
-        # Convert list of dicts to tensors
-        input_ids = torch.tensor([sample['input_ids'] for sample in samples], dtype=torch.long)
-        attention_mask = torch.tensor([sample['attention_mask'] for sample in samples], dtype=torch.long)
-        token_type_ids = torch.tensor([sample['token_type_ids'] for sample in samples], dtype=torch.long)
-        labels = torch.tensor([sample['labels'] for sample in samples], dtype=torch.long)
+        bs = len(samples)
+        max_length = self.max_length
+        num_choices = self.num_choices
+
+        student_pad_token_id = self.student_tokenizer.pad_token_id or 0
 
         model_data = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "token_type_ids": token_type_ids,
+            "input_ids": torch.ones(bs, num_choices, max_length, dtype=torch.long) * student_pad_token_id,
+            "attention_mask": torch.zeros(bs, num_choices, max_length),
         }
-        output_data = {"labels": labels}
+
+        output_data = {
+            "labels": torch.zeros(bs, dtype=torch.long)
+        }
 
         if self.teacher_tokenizer:
-            # Add teacher tokenization if needed (simplified here)
-            teacher_inputs = self.teacher_tokenizer(
-                [f"{sample['question']} {choice}" for sample in samples for choice in sample['choices']['text']],
-                truncation=True,
-                padding='max_length',
-                max_length=self.max_length,
-                return_tensors='pt'
-            )
-            teacher_input_ids = [teacher_inputs['input_ids'][i:i+8].tolist() for i in range(0, len(teacher_inputs['input_ids']), 8)]
-            teacher_attention_mask = [teacher_inputs['attention_mask'][i:i+8].tolist() for i in range(0, len(teacher_inputs['attention_mask']), 8)]
-            model_data["teacher_input_ids"] = torch.tensor(teacher_input_ids, dtype=torch.long)
-            model_data["teacher_attention_mask"] = torch.tensor(teacher_attention_mask, dtype=torch.long)
+            teacher_pad_token_id = self.teacher_tokenizer.pad_token_id or 0
+            model_data.update({
+                "teacher_input_ids": torch.ones(bs, num_choices, max_length, dtype=torch.long) * teacher_pad_token_id,
+                "teacher_attention_mask": torch.zeros(bs, num_choices, max_length),
+            })
+
+        for i, samp in enumerate(samples):
+            self._process_multiple_choice(i, samp, model_data, output_data)
 
         return model_data, output_data
