@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-#ok
 
 class CrossEntropyLoss(nn.Module):
     def __init__(self, args) -> None:
@@ -22,6 +21,7 @@ class CrossEntropyLoss(nn.Module):
         # Compute loss and accuracy
         loss, nll_loss = self.compute_cross_entropy_loss(logits, target)
         correct = self.compute_accuracy(logits, target)
+        
         
         # Update logging output
         logging_output = self.record_logging_output(
@@ -57,7 +57,8 @@ class CrossEntropyLoss(nn.Module):
         
         # Tính số lượng mẫu dự đoán đúng
         correct = pred.eq(target).sum().float()
-        return correct
+        accu = correct / target.size(0)
+        return accu
 
     def record_logging_output(self, logging_output, batch_denom, content):
         """

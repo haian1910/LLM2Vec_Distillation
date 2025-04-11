@@ -332,7 +332,7 @@ class DSKD_CMA_ATT_MINED_CKA(VariousDivergence):
         )
         
         # Combine losses
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (kd_loss + batch_denom * att_loss_total) # Hàm loss cuối cùng
+        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (kd_loss + att_loss_total) # Hàm loss cuối cùng
         log["loss"] = loss
 
         accuracy = self.compute_accuracy(
