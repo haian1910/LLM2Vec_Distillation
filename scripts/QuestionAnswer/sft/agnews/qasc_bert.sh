@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,12 +15,12 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/ag_news/"
-NUM_LABELS=4
+DATA_DIR="${BASE_PATH}/data/qasc_30/"
+NUM_LABELS=8
 # task
 TASK="sft"
 # hp
@@ -95,7 +95,7 @@ export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/QuestionAnswer/distillation.py ${OPTS}"
 
 # ${CMD}
 ${CMD} \
