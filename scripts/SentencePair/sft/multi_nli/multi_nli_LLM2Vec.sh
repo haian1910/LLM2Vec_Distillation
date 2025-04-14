@@ -19,13 +19,13 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/ag_news/"
-NUM_LABELS=4
+DATA_DIR="${BASE_PATH}/data/multi_nli/"
+NUM_LABELS=3
 # task
 TASK="sft"
 # hp
 BATCH_SIZE=4
-LR=0.001
+LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=8
 EPOCH=2
@@ -102,7 +102,7 @@ export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/SentencePair/distillation.py ${OPTS}"
 
 # ${CMD}
 ${CMD} \
