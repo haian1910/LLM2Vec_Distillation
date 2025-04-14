@@ -15,10 +15,12 @@ from peft import (
     TaskType,
     get_peft_model
 )
-from SentencePair.utils import log_rank
+from utils import log_rank
 from huggingface_hub import login
 
-login(token="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")
+import os
+token = os.getenv("HF_TOKEN")
+login(token=token)
 
 
 class Distiller(nn.Module):
@@ -159,7 +161,7 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
-                
+
                 model.config.pad_token_id = 2
                     
                 model = PeftModel.from_pretrained(
@@ -173,15 +175,6 @@ class Distiller(nn.Module):
                 )
 
                 # Apply new LoRA adapter for fine-tuning
-                
-                '''if self.args.do_train:
-                    peft_config = LoraConfig(
-                        task_type=TaskType.SEQ_CLS,  # Use SEQ_CLS instead of FEATURE_EXTRACTION
-                        inference_mode=(not self.args.do_train),
-                        r=self.args.peft_lora_r,
-                        lora_alpha=self.args.peft_lora_alpha,
-                        lora_dropout=self.args.peft_lora_dropout,
-                    )'''
                 if self.args.do_train:
                     peft_config = LoraConfig(
                         task_type=TaskType.SEQ_CLS,  # SEQ_CLS là hợp lý nếu đang làm classification
@@ -195,7 +188,7 @@ class Distiller(nn.Module):
                         ]
                     )
                     model = get_peft_model(model, peft_config)
-
+                    model.print_trainable_parameters()
             else:
                 raise NotImplementedError
         else: #for BERT
@@ -219,7 +212,6 @@ class Distiller(nn.Module):
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
-
 
         if self.args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
