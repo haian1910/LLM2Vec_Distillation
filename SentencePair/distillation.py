@@ -19,10 +19,10 @@ from transformers import (
     AutoModel,
 )
 from transformers.integrations import HfDeepSpeedConfig
-from Classification.arguments import get_args
-from Classification.distiller import Distiller
-from Classification.data_utils.distill_datasets import DistillDataset
-from Classification.utils import (
+from SentencePair.arguments import get_args
+from SentencePair.distiller import Distiller
+from SentencePair.data_utils.distill_datasets import DistillDataset
+from SentencePair.utils import (
     initialize,
     get_optimizer, 
     get_learning_rate_scheduler,
@@ -30,7 +30,7 @@ from Classification.utils import (
     log_rank,
     all_gather,
 )
-from Classification.criterions import build_criterion
+from SentencePair.criterions import build_criterion
 # from rouge_metric import compute_metrics
 
 torch.set_num_threads(4) # giới hạn số lượng thread torch sử dụng cho cpu
