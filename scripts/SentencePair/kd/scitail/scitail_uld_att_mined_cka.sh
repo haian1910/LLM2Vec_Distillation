@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,13 +15,13 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
+TEACHER_MODEL_PATH="/content/drive/MyDrive/ColabNotebooks/data_distillation/SentencePair/Checkpoint_teacher/criterion=cross_entropy__lora-rank=16-alpha=32-dropout=0.1-bf16__epoch=2__bsz=16x1x1=16__lr=0.00001/epoch1_step1444_loss0.1227"
 # data
-DATA_DIR="${BASE_PATH}/data/scitail/"
+DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/SentencePair/scitail"
 NUM_LABELS=2
 # task
 TASK="uld_att_mined_cka"
@@ -83,7 +83,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
