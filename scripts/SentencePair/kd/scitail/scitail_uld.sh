@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,7 +15,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
@@ -83,7 +83,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
