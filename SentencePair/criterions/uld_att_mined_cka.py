@@ -48,7 +48,7 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
             # Custom list of English stopwords (a common subset)
             stop_words = [
                 'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
-                'during', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
+                'during', 'here', 'there', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
                 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
                 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
                 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
@@ -58,8 +58,7 @@ class ULD_ATT_MINED_CKA(CrossEntropyLoss):
                 'did', 'doing', 'would', 'could', 'should', 'ought', 'i\'m', 'you\'re', 'he\'s',
                 'she\'s', 'it\'s', 'we\'re', 'they\'re', 'i\'ve', 'you\'ve', 'we\'ve', 'they\'ve',
                 'i\'d', 'you\'d', 'he\'d', 'she\'d', 'we\'d', 'they\'d', 'i\'ll', 'you\'ll', 'he\'ll',
-                'she\'ll', 'we\'ll', 'they\'ll', 'isn\'t', 'aren\'t', 'wasn\'t', 'weren\'t', 'hasn\'t',
-                'haven\'t', 'hadn\'t', 'let\'s', 'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
+                'she\'ll', 'we\'ll', 'they\'ll', 'let\'s', 'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
                 'why\'s', 'how\'s', '.'
                 
             ]
