@@ -31,7 +31,7 @@ from Classification.utils import (
     log_rank,
     all_gather,
 )
-from SentencePair.criterions import build_criterion
+from Classification.criterions import build_criterion
 # from rouge_metric import compute_metrics
 
 torch.set_num_threads(4) # giới hạn số lượng thread torch sử dụng cho cpu
