@@ -15,7 +15,7 @@ from peft import (
     TaskType,
     get_peft_model
 )
-from utils import log_rank
+from SentencePair.utils import log_rank
 from huggingface_hub import login
 
 import os
