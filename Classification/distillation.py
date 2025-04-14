@@ -20,10 +20,10 @@ from transformers import (
     AutoModel,
 )
 from transformers.integrations import HfDeepSpeedConfig
-from SentencePair.arguments import get_args
-from SentencePair.distiller import Distiller
-from SentencePair.data_utils.distill_datasets import DistillDataset
-from SentencePair.utils import (
+from Classification.arguments import get_args
+from Classification.distiller import Distiller
+from Classification.data_utils.distill_datasets import DistillDataset
+from Classification.utils import (
     initialize,
     get_optimizer, 
     get_learning_rate_scheduler,
