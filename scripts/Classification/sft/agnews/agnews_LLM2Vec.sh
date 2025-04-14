@@ -1,5 +1,6 @@
 #! /bin/bash
-GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0 1 2 3 4 5 6 7)
+# GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,7 +16,7 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/mnt/bn/magellan-product-llm-data/tu.vu/matrix_one/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
@@ -24,11 +25,11 @@ NUM_LABELS=4
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=8
 LR=0.001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=8
-EPOCH=2
+EPOCH=10
 LORA_RANK=4
 LORA_ALPHA=8
 LORA_DROPOUT=0.1
@@ -78,7 +79,8 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
+
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
@@ -89,13 +91,15 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
+
+# if [[ $PRECISION == "bf16" ]]; then
+#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
+# elif [[ $PRECISION == "fp16" ]]; then
+#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
+# elif [[ $PRECISION == "fp32" ]]; then
+#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
+# fi
 
 
 export NCCL_DEBUG=""
@@ -104,7 +108,7 @@ export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
 
+echo ${CMD}
 # ${CMD}
-${CMD} \
->> ${SAVE_PATH}/train.log 2>&1 &
-echo "Training started, logs are being saved to ${SAVE_PATH}/train.log"
+echo ${SAVE_PATH}/train.log
+${CMD} >> ${SAVE_PATH}/train.log 2>&1

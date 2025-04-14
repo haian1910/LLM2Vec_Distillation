@@ -1,7 +1,6 @@
 #! /bin/bash
-GPUS=(0 1 2 3 4 5 6 7 8)
-GPUS=(0 1 2 3 4 5 6 7 8)
-GPUS=(0 1)
+# GPUS=(0 1 2 3 4 5 6 7)
+GPUS=(0)
 
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
@@ -22,21 +21,21 @@ BASE_PATH=/mnt/bn/magellan-product-llm-data/tu.vu/matrix_one/LLM2Vec_Distillatio
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/yelp_30/"
+DATA_DIR="${BASE_PATH}/data/yelp_10k/"
 NUM_LABELS=5
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=2
+BATCH_SIZE=4
 LR=0.001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=2
-EPOCH=2
+EVAL_BATCH_SIZE=4
+EPOCH=3
 LORA_RANK=16
 LORA_ALPHA=32
 LORA_DROPOUT=0.1
 # length
-MAX_LENGTH=128
+MAX_LENGTH=512
 # runtime
 PRECISION="bf16"
 CRITERION="cross_entropy"
@@ -81,7 +80,7 @@ OPTS+=" --peft-lora-dropout ${LORA_DROPOUT}"
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
-# OPTS+=" --do-train"
+OPTS+=" --do-train"
 OPTS+=" --do-eval"
 
 OPTS+=" --save-interval 1"
@@ -92,16 +91,18 @@ OPTS+=" --keep-best-n-checkpoints ${SAVE_BEST_N_CKPTS}"
 OPTS+=" --criterion ${CRITERION}"
 # seed
 OPTS+=" --seed ${SEED}"
-# deepspeed
 
+# deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
+
+# if [[ $PRECISION == "bf16" ]]; then
+#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
+# elif [[ $PRECISION == "fp16" ]]; then
+#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
+# elif [[ $PRECISION == "fp32" ]]; then
+#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
+# fi
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True
