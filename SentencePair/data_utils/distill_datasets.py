@@ -58,7 +58,6 @@ class DistillDataset(Dataset):
                 tokenized_data = {
                     "student_input_ids": student_encoding['input_ids'],
                     "student_attention_mask": student_encoding['attention_mask'],
-                    "student_token_type_ids": student_encoding['token_type_ids'],  # Segment IDs for premise vs hypothesis
                     "label": int(row[label_col])
                 }
         
@@ -75,7 +74,6 @@ class DistillDataset(Dataset):
                     tokenized_data.update({
                         "teacher_input_ids": teacher_encoding['input_ids'],
                         "teacher_attention_mask": teacher_encoding['attention_mask'],
-                        "teacher_token_type_ids": teacher_encoding['token_type_ids']
                     })
 
                 dataset.append(tokenized_data)
@@ -91,7 +89,6 @@ class DistillDataset(Dataset):
         seq_len = len(input_ids)
         model_data["input_ids"][i][:seq_len] = torch.tensor(input_ids, dtype=torch.long)
         model_data["attention_mask"][i][:seq_len] = torch.tensor(samp["student_attention_mask"], dtype=torch.long)
-        model_data["token_type_ids"][i][:seq_len] = torch.tensor(samp["student_token_type_ids"], dtype=torch.long)
 
         # Process label
         no_model_data["labels"][i] = torch.tensor(samp["label"], dtype=torch.long)
@@ -102,7 +99,6 @@ class DistillDataset(Dataset):
             t_seq_len = len(t_input_ids)
             model_data["teacher_input_ids"][i][:t_seq_len] = torch.tensor(t_input_ids, dtype=torch.long)
             model_data["teacher_attention_mask"][i][:t_seq_len] = torch.tensor(samp["teacher_attention_mask"], dtype=torch.long)
-            model_data["teacher_token_type_ids"][i][:t_seq_len] = torch.tensor(samp["teacher_token_type_ids"], dtype=torch.long)
 
     def move_to_device(self, datazip, device):
         for data in datazip:
@@ -120,7 +116,6 @@ class DistillDataset(Dataset):
         model_data = {
             "input_ids": torch.ones(bs, max_length, dtype=torch.long) * student_pad_token_id,
             "attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
-            "token_type_ids": torch.zeros(bs, max_length, dtype=torch.long),  # 0 for premise, 1 for hypothesis
         }
         
         output_data = {
@@ -133,7 +128,6 @@ class DistillDataset(Dataset):
             model_data.update({
                 "teacher_input_ids": torch.ones(bs, max_length, dtype=torch.long) * teacher_pad_token_id,
                 "teacher_attention_mask": torch.zeros(bs, max_length, dtype=torch.long),
-                "teacher_token_type_ids": torch.zeros(bs, max_length, dtype=torch.long),
             })
 
         # Process each sample
