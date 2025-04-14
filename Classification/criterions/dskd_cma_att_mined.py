@@ -219,7 +219,7 @@ class DSKD_CMA_ATT_MINED(VariousDivergence):
         logging_output = self.record_logging_output(
             logging_output, batch_denom, log
         )
-        return loss / batch_denom, logging_output
+        return loss , logging_output
     
     def compute_dual_space_kd_loss_with_cma(
         self, outputs, teacher_outputs, input_data, output_data, distiller, log
