@@ -15,15 +15,15 @@ class CrossEntropyLoss(nn.Module):
         """
         self.distiller = distiller
         model = distiller.student_model
-        logits = model(**input_data).logits
         target = output_data["labels"]
-        
+
+        logits = model(input_ids=input_data['input_ids'],attention_mask=input_data['attention_mask'])
+
         # Compute loss and accuracy
         loss, nll_loss = self.compute_cross_entropy_loss(logits, target)
         correct = self.compute_accuracy(logits, target)
         
-        
-        # Update logging output
+        # Update logging output, return to main distillation
         logging_output = self.record_logging_output(
             logging_output, 
             batch_denom,
@@ -33,7 +33,7 @@ class CrossEntropyLoss(nn.Module):
                 "correct": correct
             }
         )
-        return loss / batch_denom, logging_output
+        return loss, logging_output
 
     def compute_cross_entropy_loss(self, logits, target):
         # Tính log softmax trên chiều lớp
@@ -63,7 +63,13 @@ class CrossEntropyLoss(nn.Module):
     def record_logging_output(self, logging_output, batch_denom, content):
         """
         Record metrics like loss and accuracy for logging, handling distributed training.
+        content = {
+                "loss": loss,
+                "nll_loss": nll_loss,
+                "correct": correct
+            }
         """
+        
         for k, v in content.items():
             if k == "correct":
                 # Sum the correct counts across processes
