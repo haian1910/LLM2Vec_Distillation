@@ -19,13 +19,13 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/yelp/"
-NUM_LABELS=5
+DATA_DIR="${BASE_PATH}/data/scitail/"
+NUM_LABELS=2
 # task
 TASK="sft"
 # hp
 BATCH_SIZE=16
-LR=0.0005
+LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=32
 EPOCH=2
@@ -95,7 +95,7 @@ export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/SentencePair/distillation.py ${OPTS}"
 
 # ${CMD}
 ${CMD} \
