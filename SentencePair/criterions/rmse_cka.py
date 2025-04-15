@@ -47,7 +47,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Custom list of English stopwords (a common subset)
             stop_words = [
-                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'between', 'into', 'through',
                 'during', 'here', 'there', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
                 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'should', 'now',
                 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
@@ -296,7 +296,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
             return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 9) # define lại batches 
+        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 10) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
@@ -352,7 +352,7 @@ class RMSE_CKA(CrossEntropyLoss):
                 # Lấy k layer cuối (k tương ứng với số layer sử dụng để tính loss)
                 teacher_last_k_layers = new_teacher_atts[-k:]
                 student_last_k_layers = student_atts[-k:]
-                print('Bắt đầu vào vòng lặp tính loss')
+                # print('Bắt đầu vào vòng lặp tính loss')
 
                 # Lặp qua từng layer trong k layer cuối
                 for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
@@ -363,7 +363,6 @@ class RMSE_CKA(CrossEntropyLoss):
 
                     teacher_att_for_k_token = teacher_att[0, :, teacher_indices, :].mean(dim=0)  # (k, t)
                     student_att_for_k_token = student_att[0, :, student_indices, :].mean(dim=0)   # (k, s)
-                    print('Lấy xong ma trận attention cho k token')
 
                     # Xử lý các giá trị attention nhỏ
                     teacher_att_for_k_token = torch.where(
@@ -376,8 +375,8 @@ class RMSE_CKA(CrossEntropyLoss):
                         torch.zeros_like(student_att_for_k_token).to(device),
                         student_att_for_k_token
                     )
-                    print("Teacher attention shape (k x t):", teacher_att_for_k_token.shape)
-                    print("Student attention shape (k x s):", student_att_for_k_token.shape)
+                    # print("Teacher attention shape (k x t):", teacher_att_for_k_token.shape)
+                    # print("Student attention shape (k x s):", student_att_for_k_token.shape)
 
                     # Khởi tạo CKALoss
                     cka_loss_fn = CKALoss(eps=1e-8).to(device)
@@ -417,6 +416,6 @@ class RMSE_CKA(CrossEntropyLoss):
         logging_output = self.record_logging_output(
             logging_output, batch_denom, log
         )
-        return loss , logging_output
+        return loss, logging_output
     
     
