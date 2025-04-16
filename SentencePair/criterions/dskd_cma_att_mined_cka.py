@@ -47,7 +47,7 @@ class DSKD_CMA_ATT_MINED_CKA(VariousDivergence):
             stop_words = [
                 'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
                 'during', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
-                'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
+                'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'should', 'now',
                 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
                 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers',
                 'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
