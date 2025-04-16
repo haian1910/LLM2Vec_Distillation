@@ -46,7 +46,7 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
 
             # Custom list of English stopwords (a common subset)
             stop_words = [
-                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through',
+                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about',, 'between', 'into', 'through',
                 'during', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
                 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
                 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
@@ -248,14 +248,14 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
                 # Lấy reciprocal_mapping top k và các chỉ số tương ứng
                 reciprocal_mapping_top_k = get_top_k_reciprocal_mapping(text)
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping_top_k)
-                print("Teacher indices (top-k):", teacher_indices)
-                print("Student indices (top-k):", student_indices)
-                print('Lấy xong mapping')
+                # print("Teacher indices (top-k):", teacher_indices)
+                # print("Student indices (top-k):", student_indices)
+                # print('Lấy xong mapping')
 
                 # Chạy mô hình với output_attentions=True
                 teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
                 student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
-                print('Đã chạy mô hình')
+                # print('Đã chạy mô hình')
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -272,18 +272,18 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
                 # Lấy k layer cuối (k tương ứng với số layer sử dụng để tính loss)
                 teacher_last_k_layers = new_teacher_atts[-k:]
                 student_last_k_layers = student_atts[-k:]
-                print('Bắt đầu vào vòng lặp tính loss')
+                # print('Bắt đầu vào vòng lặp tính loss')
 
                 # Lặp qua từng layer trong k layer cuối
                 for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
-                    print(f"Processing layer với {teacher_att.shape[0]} head(s)")
+                    # print(f"Processing layer với {teacher_att.shape[0]} head(s)")
                     # Lấy ma trận attention cho k token đối với tất cả các token:
                     # - Với teacher: shape (k, t) với t là số token toàn bộ của text theo tokenizer_teacher
                     # - Với student: shape (k, s) với s là số token toàn bộ của text theo tokenizer_student
 
                     teacher_att_for_k_token = teacher_att[0, :, teacher_indices, :].mean(dim=0)  # (k, t)
                     student_att_for_k_token = student_att[0, :, student_indices, :].mean(dim=0)   # (k, s)
-                    print('Lấy xong ma trận attention cho k token')
+                    # print('Lấy xong ma trận attention cho k token')
 
                     # Xử lý các giá trị attention nhỏ
                     teacher_att_for_k_token = torch.where(
@@ -296,8 +296,8 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
                         torch.zeros_like(student_att_for_k_token).to(device),
                         student_att_for_k_token
                     )
-                    print("Teacher attention shape (k x t):", teacher_att_for_k_token.shape)
-                    print("Student attention shape (k x s):", student_att_for_k_token.shape)
+                    # print("Teacher attention shape (k x t):", teacher_att_for_k_token.shape)
+                    # print("Student attention shape (k x s):", student_att_for_k_token.shape)
 
                     # Khởi tạo CKALoss
                     cka_loss_fn = CKALoss(eps=1e-6).to(device)
@@ -305,7 +305,7 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
                     # Tính CKALoss giữa 2 ma trận
                     cka_loss = cka_loss_fn(student_att_for_k_token, teacher_att_for_k_token)
 
-                    print("CKA Loss:", cka_loss.item())
+                    # print("CKA Loss:", cka_loss.item())
                     att_loss_total  += cka_loss   
 
             return att_loss_total
