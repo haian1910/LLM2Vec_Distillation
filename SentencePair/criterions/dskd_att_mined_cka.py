@@ -46,7 +46,7 @@ class DSKD_ATT_MINED_CKA(VariousDivergence):
 
             # Custom list of English stopwords (a common subset)
             stop_words = [
-                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about',, 'between', 'into', 'through',
+                'a', 'an', 'the', 'of', 'at', 'by', 'for', 'with', 'about', 'between', 'into', 'through',
                 'during', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'other', 'such',
                 'than', 'too', 'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now',
                 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours',
