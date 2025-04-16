@@ -255,7 +255,7 @@ class Distiller(nn.Module):
         )
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
         teacher_model = PeftModel.from_pretrained(
-            model,
+            teacher_model,
             self.args.teacher_model_path,
         )
       
