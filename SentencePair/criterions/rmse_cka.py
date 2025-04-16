@@ -238,7 +238,7 @@ class RMSE_CKA(CrossEntropyLoss):
             for i in range(batch_size):
                 # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
                 text = decode_input_ids(tokenizer_student, input_data["input_ids"][i])
-                print(f"Processing text: {text}")
+                # print(f"Processing text: {text}")
 
                 # Tiền xử lý văn bản
                 text = text.lower()
@@ -328,14 +328,14 @@ class RMSE_CKA(CrossEntropyLoss):
                 # Lấy reciprocal_mapping top k và các chỉ số tương ứng
                 reciprocal_mapping_top_k = get_top_k_reciprocal_mapping(text)
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping_top_k)
-                print("Teacher indices (top-k):", teacher_indices)
-                print("Student indices (top-k):", student_indices)
-                print('Lấy xong mapping')
+                # print("Teacher indices (top-k):", teacher_indices)
+                # print("Student indices (top-k):", student_indices)
+                # print('Lấy xong mapping')
 
                 # Chạy mô hình với output_attentions=True
                 teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
                 student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
-                print('Đã chạy mô hình')
+                # print('Đã chạy mô hình')
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -356,7 +356,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
                 # Lặp qua từng layer trong k layer cuối
                 for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
-                    print(f"Processing layer với {teacher_att.shape[0]} head(s)")
+                    # print(f"Processing layer với {teacher_att.shape[0]} head(s)")
                     # Lấy ma trận attention cho k token đối với tất cả các token:
                     # - Với teacher: shape (k, t) với t là số token toàn bộ của text theo tokenizer_teacher
                     # - Với student: shape (k, s) với s là số token toàn bộ của text theo tokenizer_student
@@ -384,7 +384,7 @@ class RMSE_CKA(CrossEntropyLoss):
                     # Tính CKALoss giữa 2 ma trận
                     cka_loss = cka_loss_fn(student_att_for_k_token, teacher_att_for_k_token)
 
-                    print("CKA Loss:", cka_loss.item())
+                    # print("CKA Loss:", cka_loss.item())
                     att_loss_total  += cka_loss   
 
             return att_loss_total
