@@ -291,7 +291,7 @@ class RMSE_CKA(CrossEntropyLoss):
                         torch.zeros_like(student_att_for_n_token).to(device),
                         student_att_for_n_token
                     )
-                    print("rmse_loss:", loss_mse(student_att_for_n_token, teacher_att_for_n_token))
+                    
                     # Tính MSE và cộng vào att_loss_total
                     att_loss_total += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
 
@@ -385,7 +385,7 @@ class RMSE_CKA(CrossEntropyLoss):
                     # Tính CKALoss giữa 2 ma trận
                     cka_loss = cka_loss_fn(student_att_for_k_token, teacher_att_for_k_token)
 
-                    print("CKA Loss:", cka_loss.item())
+                    
                     att_loss_total  += cka_loss   
 
             return att_loss_total
