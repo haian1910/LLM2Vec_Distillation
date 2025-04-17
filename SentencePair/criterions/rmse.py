@@ -195,12 +195,14 @@ class RMSE(CrossEntropyLoss):
                         torch.zeros_like(student_att_for_n_token).to(device),
                         student_att_for_n_token
                     )
+                    print("rmse:", loss_mse(student_att_for_n_token, teacher_att_for_n_token))
                     # Tính MSE và cộng vào att_loss_total
                     att_loss_total += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
 
             return att_loss_total
 
         att_loss_total = compute_att_loss(teacher_model, model,input_data, 3) # define lại batches 
+        print("att_loss:", att_loss_total)
         
 
         logits = outputs.logits
