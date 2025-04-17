@@ -19,7 +19,7 @@ BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="/content/drive/MyDrive/ColabNotebooks/data_distillation/SentencePair/Check_point_scitail/Checkpoint_teacher/criterion=cross_entropy__lora-rank=16-alpha=32-dropout=0.1-bf16__epoch=2__bsz=16x1x1=16__lr=0.00001/epoch1_step1444_loss0.1227"
+TEACHER_MODEL_PATH="link"
 # data
 DATA_DIR="/data/ai2_arc"
 NUM_LABELS=8
