@@ -17,7 +17,7 @@ criterion_list = {
     "cross_entropy": CrossEntropyLoss,
     "various_divergence": VariousDivergence,
     "dual_space_kd": DualSpaceKD,
-    "dual_space_kd_with_cma": DualSpaceKDWithCMA,
+    "dual_space_kd_with_cross_model_attention": DualSpaceKDWithCMA,
     "universal_logit_distillation": UniversalLogitDistillation,
     # "min_edit_dis_kld": MinEditDisForwardKLD,
     "uld_att_mined": ULD_ATT_MINED,
