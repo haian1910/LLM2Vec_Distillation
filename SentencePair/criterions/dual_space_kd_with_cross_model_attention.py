@@ -41,7 +41,7 @@ class DualSpaceKDWithCMA(VariousDivergence):
         kd_loss, log = self.compute_dual_space_kd_loss_with_cma(
             outputs, teacher_outputs, input_data, output_data, distiller, log
         )
-        
+        print(kd_loss)
         # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
