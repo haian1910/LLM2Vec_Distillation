@@ -297,7 +297,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
             return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 5) # define lại batches 
+        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
@@ -390,7 +390,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
             return att_loss_total
     
-        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 5) 
+        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 3) 
         print("att_loss_total_1:", att_loss_total_1)
         print("att_loss_total_2:", att_loss_total_2)
 
