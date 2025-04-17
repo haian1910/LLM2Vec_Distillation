@@ -408,7 +408,7 @@ class RMSE_CKA(CrossEntropyLoss):
         )[0]
         log = {}
 
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.05*att_loss_total_2) # Hàm loss cuối cùng
+        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
         log["loss"] = loss
 
         accuracy = self.compute_accuracy(
