@@ -19,21 +19,21 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/ag_news/"
-NUM_LABELS=4
+DATA_DIR="${BASE_PATH}/data/qasc/"
+NUM_LABELS=8
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=4
-LR=0.001
+BATCH_SIZE=16
+LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=8
+EVAL_BATCH_SIZE=32
 EPOCH=2
 LORA_RANK=4
 LORA_ALPHA=8
 LORA_DROPOUT=0.1
 # length
-MAX_LENGTH=512
+MAX_LENGTH=128
 # runtime
 PRECISION="bf16"
 CRITERION="cross_entropy"
@@ -89,20 +89,14 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
 
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/QuestionAnswer/distillation.py ${OPTS}"
 
 # ${CMD}
 ${CMD} \
