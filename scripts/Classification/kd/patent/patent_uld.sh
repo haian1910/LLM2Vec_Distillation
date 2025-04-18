@@ -22,7 +22,7 @@ TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
 DATA_DIR="${BASE_PATH}/data/patent/"
-NUM_LABELS=3
+NUM_LABELS=9
 # task
 TASK="uld"
 # hp
