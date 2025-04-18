@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,21 +15,22 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
 DATA_DIR="${BASE_PATH}/data/qasc/"
+DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/data_test/qasc_30"
 NUM_LABELS=8
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=16
+BATCH_SIZE=1
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=32
 EPOCH=2
-LORA_RANK=4
+LORA_RANK=1
 LORA_ALPHA=8
 LORA_DROPOUT=0.1
 # length
@@ -78,7 +79,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
