@@ -312,7 +312,7 @@ class CustomModelForMultipleChoice(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob if hasattr(config, 'hidden_dropout_prob') else 0.1)
         self.classifier = nn.Linear(config.hidden_size, 1)
         
-    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, **kwargs):
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, output_hidden_states=False, output_attentions=False, **kwargs):
         # Flatten input for processing
         batch_size = input_ids.size(0)
         num_choices = input_ids.size(1)
@@ -327,16 +327,29 @@ class CustomModelForMultipleChoice(nn.Module):
             input_ids=input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
+            output_hidden_states=output_hidden_states,
+            output_attentions=output_attentions,
             **kwargs
         )
         
-        # Extract the pooled output or use the last hidden state
+        # Extract the pooled output and other model outputs
         if hasattr(outputs, 'pooler_output'):
             pooled_output = outputs.pooler_output
+            last_hidden_state = outputs.last_hidden_state
+            hidden_states = outputs.hidden_states if output_hidden_states else None
+            attentions = outputs.attentions if output_attentions else None
         else:
-            # For models without pooler, use the last hidden state's [CLS] token
-            last_hidden_state = outputs[0] if isinstance(outputs, tuple) else outputs.last_hidden_state
-            pooled_output = last_hidden_state[:, 0]
+            # For models without pooler or with tuple outputs
+            if isinstance(outputs, tuple):
+                last_hidden_state = outputs[0]
+                hidden_states = outputs[1] if len(outputs) > 1 and output_hidden_states else None
+                attentions = outputs[2] if len(outputs) > 2 and output_attentions else None
+                pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
+            else:
+                last_hidden_state = outputs.last_hidden_state
+                hidden_states = outputs.hidden_states if hasattr(outputs, 'hidden_states') else None
+                attentions = outputs.attentions if hasattr(outputs, 'attentions') else None
+                pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
         
         # Apply dropout and classification
         pooled_output = self.dropout(pooled_output)
@@ -350,9 +363,13 @@ class CustomModelForMultipleChoice(nn.Module):
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(reshaped_logits, labels)
         
+        # Return a comprehensive dictionary with all outputs
         return {
             'loss': loss,
-            'logits': reshaped_logits
+            'logits': reshaped_logits,
+            'hidden_states': hidden_states,
+            'attentions': attentions,
+            'last_hidden_state': last_hidden_state
         }
     
     def get_input_embeddings(self):
