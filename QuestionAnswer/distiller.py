@@ -304,46 +304,59 @@ class Distiller(nn.Module):
         )
         return loss, logging_output
 class CustomModelForMultipleChoice(nn.Module):
-    """Wrapper around AutoModel to add a custom multiple choice head"""
     def __init__(self, base_model, config):
-        super().__init__()
-        self.config = config
+        super(CustomModelForMultipleChoice, self).__init__()
         self.base_model = base_model
-        self.multiple_choice_head = CustomMultipleChoiceHead(config)
-    
+        self.config = config
+        self.num_labels = config.num_labels
+        self.dropout = nn.Dropout(config.hidden_dropout_prob if hasattr(config, 'hidden_dropout_prob') else 0.1)
+        self.classifier = nn.Linear(config.hidden_size, 1)
+        
     def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, **kwargs):
-        # Get the base model outputs
+        # Flatten input for processing
+        batch_size = input_ids.size(0)
+        num_choices = input_ids.size(1)
+        
+        # Reshape inputs to match the base model's expectations
+        input_ids = input_ids.view(-1, input_ids.size(-1))
+        attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
+        token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1)) if token_type_ids is not None else None
+        
+        # Get outputs from the base model
         outputs = self.base_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            output_attentions=kwargs.get("output_attentions", None),
-            return_dict=kwargs.get("return_dict", True),
-            **{k: v for k, v in kwargs.items() if k not in ["output_attentions", "output_hidden_states", "return_dict"]}
+            **kwargs
         )
         
-        # Get the pooled output (usually the [CLS] token representation)
-        pooled_output = outputs.pooler_output if hasattr(outputs, "pooler_output") else outputs.last_hidden_state[:, 0]
+        # Extract the pooled output or use the last hidden state
+        if hasattr(outputs, 'pooler_output'):
+            pooled_output = outputs.pooler_output
+        else:
+            # For models without pooler, use the last hidden state's [CLS] token
+            last_hidden_state = outputs[0] if isinstance(outputs, tuple) else outputs.last_hidden_state
+            pooled_output = last_hidden_state[:, 0]
         
-        # Apply custom multiple choice head
-        logits = self.multiple_choice_head(pooled_output)
+        # Apply dropout and classification
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+        
+        # Reshape logits back to [batch_size, num_choices]
+        reshaped_logits = logits.view(batch_size, num_choices)
         
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits, labels)
+            loss = loss_fct(reshaped_logits, labels)
         
-        # Create a complete output dictionary with all the original outputs plus our logits and loss
-        result = {
-            "loss": loss,
-            "logits": logits,
-            "hidden_states": outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
-            "attentions": outputs.attentions if hasattr(outputs, "attentions") else None,
+        return {
+            'loss': loss,
+            'logits': reshaped_logits
         }
-        
-        # Add any additional outputs that might be present
-        for key, value in outputs.items():
-            if key not in result and key not in ["pooler_output"]:
-                result[key] = value
-                
-        return result
+    
+    def get_input_embeddings(self):
+        return self.base_model.get_input_embeddings()
+    
+    def set_input_embeddings(self, value):
+        self.base_model.set_input_embeddings(value)
