@@ -18,7 +18,9 @@ from peft import (
 from utils import log_rank
 from huggingface_hub import login
 
-login(token="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")
+#login(token="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")
+token = os.getenv("HF_TOKEN")
+login(token=token)
 
 
 class Distiller(nn.Module):
