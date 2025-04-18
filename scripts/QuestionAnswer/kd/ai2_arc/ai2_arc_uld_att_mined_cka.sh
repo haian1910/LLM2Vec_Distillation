@@ -21,7 +21,8 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="link"
 # data
-DATA_DIR="/data/ai2_arc"
+# data
+DATA_DIR="${BASE_PATH}/data/ai2_arc/"
 NUM_LABELS=8
 # task
 TASK="uld_att_mined_cka"
