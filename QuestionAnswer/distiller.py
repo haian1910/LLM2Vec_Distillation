@@ -154,7 +154,7 @@ class Distiller(nn.Module):
                     self.hidden_size = config.hidden_size
         
                 config.num_labels = self.args.num_labels
-                model = AutoModelForMultipleChoice.from_pretrained(
+                model = AutoModel.from_pretrained(
                     "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
                     config=config,
                     device_map=None,
@@ -212,7 +212,7 @@ class Distiller(nn.Module):
             else:
                 self.hidden_size = config.hidden_size
             config.num_labels = self.args.num_labels
-            model = AutoModelForMultipleChoice.from_pretrained(
+            model = AutoModel.from_pretrained(
                 "bert-base-uncased", 
                 config=config, 
                 device_map=None, 
@@ -222,7 +222,7 @@ class Distiller(nn.Module):
                 sum([p.nelement() for p in model.parameters()])
             ))
 
-
+        model = CustomModelForMultipleChoice(model, config)
         if self.args.gradient_checkpointing:
             model.gradient_checkpointing_enable()
 
@@ -303,3 +303,47 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
+class CustomModelForMultipleChoice(nn.Module):
+    """Wrapper around AutoModel to add a custom multiple choice head"""
+    def __init__(self, base_model, config):
+        super().__init__()
+        self.config = config
+        self.base_model = base_model
+        self.multiple_choice_head = CustomMultipleChoiceHead(config)
+    
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, **kwargs):
+        # Get the base model outputs
+        outputs = self.base_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            output_attentions=kwargs.get("output_attentions", None),
+            return_dict=kwargs.get("return_dict", True),
+            **{k: v for k, v in kwargs.items() if k not in ["output_attentions", "output_hidden_states", "return_dict"]}
+        )
+        
+        # Get the pooled output (usually the [CLS] token representation)
+        pooled_output = outputs.pooler_output if hasattr(outputs, "pooler_output") else outputs.last_hidden_state[:, 0]
+        
+        # Apply custom multiple choice head
+        logits = self.multiple_choice_head(pooled_output)
+        
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)
+        
+        # Create a complete output dictionary with all the original outputs plus our logits and loss
+        result = {
+            "loss": loss,
+            "logits": logits,
+            "hidden_states": outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
+            "attentions": outputs.attentions if hasattr(outputs, "attentions") else None,
+        }
+        
+        # Add any additional outputs that might be present
+        for key, value in outputs.items():
+            if key not in result and key not in ["pooler_output"]:
+                result[key] = value
+                
+        return result
