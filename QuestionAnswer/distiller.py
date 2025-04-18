@@ -311,7 +311,7 @@ class CustomModelForMultipleChoice(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob if hasattr(config, 'hidden_dropout_prob') else 0.1)
         self.classifier = nn.Linear(config.hidden_size, 1)
         
-    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, output_hidden_states=False, output_attentions=False, **kwargs):
+    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, output_hidden_states=True, output_attentions=True, **kwargs):
         # Flatten input for processing
         batch_size = input_ids.size(0)
         num_choices = input_ids.size(1)
