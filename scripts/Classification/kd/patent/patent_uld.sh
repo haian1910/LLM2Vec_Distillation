@@ -21,8 +21,8 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/scitail/"
-NUM_LABELS=2
+DATA_DIR="${BASE_PATH}/data/patent/"
+NUM_LABELS=3
 # task
 TASK="uld"
 # hp
@@ -30,7 +30,7 @@ BATCH_SIZE=16
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=16
-EPOCH=2
+EPOCH=3
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
@@ -107,7 +107,7 @@ export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/SentencePair/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
 
 ${CMD} \
 >> ${SAVE_PATH}/train.log 2>&1 &
