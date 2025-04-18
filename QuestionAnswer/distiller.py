@@ -325,6 +325,8 @@ class CustomModelForMultipleChoice(nn.Module):
         outputs = self.base_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            output_hidden_states=output_hidden_states,
+            output_attentions=output_attentions,
         )
         
         # Extract the pooled output and other model outputs
@@ -340,9 +342,9 @@ class CustomModelForMultipleChoice(nn.Module):
                 attentions = outputs[2] if len(outputs) > 2 and output_attentions else None
                 pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
             else:
-                hidden_states = outputs.hidden_states if hasattr(outputs, 'hidden_states') else None
+                hidden_states = outputs.hidden_states[-1] if hasattr(outputs, 'hidden_states') else None
                 attentions = outputs.attentions if hasattr(outputs, 'attentions') else None
-                pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
+                pooled_output = hidden_states[-1]  # Use [CLS] token
         
         # Apply dropout and classification
         pooled_output = self.dropout(pooled_output)
@@ -351,14 +353,9 @@ class CustomModelForMultipleChoice(nn.Module):
         # Reshape logits back to [batch_size, num_choices]
         reshaped_logits = logits.view(batch_size, num_choices)
         
-        loss = None
-        if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(reshaped_logits, labels)
         
         # Return a comprehensive dictionary with all outputs
         return {
-            'loss': loss,
             'logits': reshaped_logits,
             'hidden_states': hidden_states,
             'attentions': attentions,
