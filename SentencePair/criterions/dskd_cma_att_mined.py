@@ -199,7 +199,7 @@ class DSKD_CMA_ATT_MINED(VariousDivergence):
 
             return att_loss_total
 
-        att_loss_total = compute_att_loss(teacher_model, model,input_data, 3) # define lại batches 
+        att_loss_total = compute_att_loss(teacher_model, model,input_data, 1) # define lại batches 
         # Cross-entropy loss with ground-truth labels
         loss_ce = self.compute_cross_entropy_loss(outputs.logits, output_data["labels"])[0]
         
