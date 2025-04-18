@@ -1,11 +1,12 @@
 import torch
 import os
+import re
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset
 import torch.distributed as dist
 from tqdm import tqdm
-from utils import log_rank
+from QuestionAnswer.utils import log_rank
 from typing import Dict, Optional, List
 from transformers import AutoTokenizer
 import ast
