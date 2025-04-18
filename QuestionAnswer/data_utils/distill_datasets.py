@@ -35,47 +35,41 @@ class DistillDataset(Dataset):
         return self.dataset[index]
     
     def _parse_choices(self, choices_str):
-        """Safely parse the choices string without using eval()"""
+        """Parse the cleaned choices string from CSV"""
         try:
-            # First try to parse as a dictionary using ast.literal_eval
-            choices_dict = ast.literal_eval(choices_str)
-            # If it contains numpy arrays, need to handle specially
-            if isinstance(choices_dict, dict):
-                result = {}
-                for key, value in choices_dict.items():
-                    if isinstance(value, str) and 'array(' in value:
-                        # Extract array content
-                        content = value.split('array(')[1].split(']')[0] + ']'
-                        content = content.replace("'", '"')  # Convert single quotes to double quotes
-                        try:
-                            parsed_content = json.loads(content)
-                            result[key] = parsed_content
-                        except json.JSONDecodeError:
-                            # Fall back to simple string splitting for array content
-                            content = content.strip('[]()')
-                            items = [item.strip(" '\"") for item in content.split(',')]
-                            result[key] = items
-                    else:
-                        result[key] = value
-                return result
-            return choices_dict
-        except (ValueError, SyntaxError):
-            # If it fails, try simple parsing
-            if 'text' in choices_str and 'label' in choices_str:
-                # Try to extract text and label parts
-                text_part = choices_str.split("'text': array(")[1].split("], dtype=object)")[0] + "]"
-                label_part = choices_str.split("'label': array(")[1].split("], dtype=object)")[0] + "]"
-                
-                # Clean up and parse
-                text_items = [item.strip(" '\"") for item in text_part.strip('[]').split(',')]
-                label_items = [item.strip(" '\"") for item in label_part.strip('[]').split(',')]
-                
-                return {
-                    'text': text_items,
-                    'label': label_items
-                }
+            # Remove the outer square brackets that may be present due to string representation
+            cleaned_str = choices_str.strip()
             
+            # Convert to a dictionary structure matching the expected format
+            if "text" in cleaned_str and "label" in cleaned_str:
+                # Extract the contents within square brackets for text and label
+                text_match = re.search(r"'text': \[(.*?)\]", cleaned_str)
+                label_match = re.search(r"'label': \[(.*?)\]", cleaned_str)
+                
+                if text_match and label_match:
+                    # Extract and parse the options
+                    text_content = text_match.group(1)
+                    text_items = [item.strip(" '\"") for item in text_content.split(',')]
+                    
+                    label_content = label_match.group(1)
+                    label_items = [item.strip(" '\"") for item in label_content.split(',')]
+                    
+                    return {
+                        'text': text_items,
+                        'label': label_items
+                    }
+            
+            # If direct parsing failed, try ast.literal_eval as a fallback
+            try:
+                return ast.literal_eval(choices_str)
+            except (ValueError, SyntaxError):
+                pass
+                
             # If all else fails, return the original string
+            return choices_str
+            
+        except Exception as e:
+            log_rank(f"Warning: Error parsing choices: {e}")
             return choices_str
     
     def _load_and_process_data(self):
@@ -94,115 +88,90 @@ class DistillDataset(Dataset):
             for idx, row in tqdm(df.iterrows(), total=len(df), disable=(dist.get_rank() != 0)):
                 question = row['question']
                 
-                # Handle choices based on type
-                if isinstance(row['choices'], str):
-                    choices = self._parse_choices(row['choices'])
-                else:
-                    choices = row['choices']
-                
-                # Extract choice texts
-                if isinstance(choices, dict) and 'text' in choices:
-                    choice_texts = choices['text']
-                    # Handle if it's a numpy array
-                    if hasattr(choice_texts, 'tolist'):
-                        choice_texts = choice_texts.tolist()
-                else:
-                    # Assume choices is directly a list of texts
-                    choice_texts = choices
-                
-                answer_key = row['answerKey']
-                
-                # Skip rows with NaN answer keys
-                if isinstance(answer_key, float) and math.isnan(answer_key):
-                    log_rank(f"Warning: Skipping row {idx} due to NaN answer key")
-                    continue
-                
-                # Find the index of the correct answer
-                label_idx = 0  # Default to first answer if we can't determine
+                # Handle the cleaned choices format from CSV
                 try:
+                    # Parse the cleaned choices string
+                    choices = self._parse_choices(row['choices'])
+                    
+                    # Extract choice texts
+                    if isinstance(choices, dict) and 'text' in choices:
+                        choice_texts = choices['text']
+                    else:
+                        # If parsing failed, log warning and skip
+                        log_rank(f"Warning: Could not parse choices for row {idx}, skipping")
+                        continue
+                    
+                    answer_key = row['answerKey']
+                    
+                    # Skip rows with NaN answer keys
+                    if isinstance(answer_key, float) and math.isnan(answer_key):
+                        log_rank(f"Warning: Skipping row {idx} due to NaN answer key")
+                        continue
+                    
+                    # Find the index of the correct answer
+                    label_idx = 0  # Default to first answer if we can't determine
+                    
                     if isinstance(choices, dict) and 'label' in choices:
                         answer_labels = choices['label']
-                        # Handle if it's a numpy array
-                        if hasattr(answer_labels, 'tolist'):
-                            answer_labels = answer_labels.tolist()
                         
                         # Try to find the answer key in labels
                         try:
                             label_idx = answer_labels.index(answer_key)
                         except (ValueError, TypeError):
-                            # If the answer key is not found or it's not a valid type
+                            # If answer key not found in labels, try alphabetical index (A, B, C...)
                             if isinstance(answer_key, str) and len(answer_key) == 1:
-                                # Try to use alphabetical index
                                 label_idx = ord(answer_key.upper()) - ord('A')
                                 if label_idx < 0 or label_idx >= len(choice_texts):
                                     label_idx = 0  # Fallback to first choice
-                            else:
-                                # Try to use as direct index if it's a number
-                                try:
-                                    if isinstance(answer_key, (int, float)) and not math.isnan(answer_key):
-                                        label_idx = int(answer_key)
-                                        if label_idx < 0 or label_idx >= len(choice_texts):
-                                            label_idx = 0
-                                except (ValueError, TypeError):
-                                    label_idx = 0
                     else:
                         # Default to alphabetical index for A, B, C, D style answer keys
                         if isinstance(answer_key, str) and len(answer_key) == 1:
                             label_idx = ord(answer_key.upper()) - ord('A')
                             if label_idx < 0 or label_idx >= len(choice_texts):
                                 label_idx = 0
-                        else:
-                            # Try to use as direct index
-                            try:
-                                if isinstance(answer_key, (int, float)) and not math.isnan(answer_key):
-                                    label_idx = int(answer_key)
-                                    if label_idx < 0 or label_idx >= len(choice_texts):
-                                        label_idx = 0
-                            except (ValueError, TypeError):
-                                label_idx = 0
-                
-                except Exception as e:
-                    log_rank(f"Warning: Error processing answer key for row {idx}: {e}")
-                    label_idx = 0  # Default to first choice
-                
-                # Ensure label_idx is within bounds
-                if label_idx < 0 or label_idx >= len(choice_texts):
-                    label_idx = 0
-                
-                student_encoded_choices = []
-                teacher_encoded_choices = [] if self.teacher_tokenizer else None
-                
-                for choice_text in choice_texts:
-                    # Format as: question + choice
-                    formatted_text = f"{question} {choice_text}"
                     
-                    student_input_ids = self.student_tokenizer.encode(
-                        formatted_text,
-                        add_special_tokens=True,
-                        max_length=self.max_length,
-                        truncation=True
-                    )
-                    student_encoded_choices.append(student_input_ids)
+                    # Ensure label_idx is within bounds
+                    if label_idx < 0 or label_idx >= len(choice_texts):
+                        label_idx = 0
                     
-                    if self.teacher_tokenizer:
-                        teacher_input_ids = self.teacher_tokenizer.encode(
+                    student_encoded_choices = []
+                    teacher_encoded_choices = [] if self.teacher_tokenizer else None
+                    
+                    for choice_text in choice_texts:
+                        # Format as: question + choice
+                        formatted_text = f"{question} {choice_text}"
+                        
+                        student_input_ids = self.student_tokenizer.encode(
                             formatted_text,
                             add_special_tokens=True,
                             max_length=self.max_length,
                             truncation=True
                         )
-                        teacher_encoded_choices.append(teacher_input_ids)
-                
-                sample = {
-                    "student_input_ids": student_encoded_choices,
-                    "label": label_idx,
-                    "num_choices": len(choice_texts)
-                }
-                
-                if teacher_encoded_choices:
-                    sample["teacher_input_ids"] = teacher_encoded_choices
+                        student_encoded_choices.append(student_input_ids)
+                        
+                        if self.teacher_tokenizer:
+                            teacher_input_ids = self.teacher_tokenizer.encode(
+                                formatted_text,
+                                add_special_tokens=True,
+                                max_length=self.max_length,
+                                truncation=True
+                            )
+                            teacher_encoded_choices.append(teacher_input_ids)
                     
-                dataset.append(sample)
+                    sample = {
+                        "student_input_ids": student_encoded_choices,
+                        "label": label_idx,
+                        "num_choices": len(choice_texts)
+                    }
+                    
+                    if teacher_encoded_choices:
+                        sample["teacher_input_ids"] = teacher_encoded_choices
+                        
+                    dataset.append(sample)
+                    
+                except Exception as e:
+                    log_rank(f"Warning: Error processing row {idx}: {e}")
+                    continue
             
             log_rank(f"Successfully processed {len(dataset)} samples for {self.split}")
             return dataset
