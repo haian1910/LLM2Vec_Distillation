@@ -355,11 +355,13 @@ class CustomModelForMultipleChoice(nn.Module):
         
         
         # Return a comprehensive dictionary with all outputs
-        return {
-            'logits': reshaped_logits,
-            'hidden_states': hidden_states,
-            'attentions': attentions,
-        }
+        class OutputObject:
+            def __init__(self, logits, hidden_states, attentions):
+                self.logits = logits
+                self.hidden_states = hidden_states
+                self.attentions = attentions
+
+        return OutputObject(reshaped_logits, hidden_states, attentions)
     
     def get_input_embeddings(self):
         return self.base_model.get_input_embeddings()
