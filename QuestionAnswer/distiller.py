@@ -19,8 +19,7 @@ from utils import log_rank
 from huggingface_hub import login
 
 #login(token="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")
-token = os.getenv("HF_TOKEN")
-login(token=token)
+login(token="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")
 
 
 class Distiller(nn.Module):
@@ -142,11 +141,11 @@ class Distiller(nn.Module):
 
         if self.args.peft is not None: #for LLM2Vec
             if self.args.peft == "lora":
-                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp", trust_remote_code=True)
+                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp", trust_remote_code=True)
                 config.is_model_parallel = False
         
                 # lấy tokenizer
-                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
                 
                 if hasattr(config, "n_embed"):
                     self.hidden_size = config.n_embed
@@ -154,8 +153,8 @@ class Distiller(nn.Module):
                     self.hidden_size = config.hidden_size
         
                 config.num_labels = self.args.num_labels
-                model = AutoModel.from_pretrained(
-                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+                model = AutoModelForCausalLM.from_pretrained(
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
                     config=config,
                     device_map=None,
                     torch_dtype=self.dtype,
@@ -166,12 +165,12 @@ class Distiller(nn.Module):
                     
                 model = PeftModel.from_pretrained(
                     model,
-                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
                 )
                 model = model.merge_and_unload()  # This can take several minutes on cpu
 
                 model = PeftModel.from_pretrained(
-                    model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
+                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
                 )
 
                 # Apply new LoRA adapter for fine-tuning
@@ -231,12 +230,12 @@ class Distiller(nn.Module):
     def load_teacher_model(self):
         log_rank("Loading teacher model...")
         config = AutoConfig.from_pretrained(
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             trust_remote_code=True
         )
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
@@ -245,7 +244,7 @@ class Distiller(nn.Module):
 
         config.num_labels = self.args.num_labels
         model = AutoModelForMultipleChoice.from_pretrained(
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             config=config,
             device_map=None,
             torch_dtype=self.dtype,
@@ -254,14 +253,14 @@ class Distiller(nn.Module):
         model.config.pad_token_id = 2
         teacher_model = PeftModel.from_pretrained(
             model,
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
         )    
         
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
         # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
         teacher_model = PeftModel.from_pretrained(
-            teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
+            teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
         )
         teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
         teacher_model = PeftModel.from_pretrained(
@@ -326,16 +325,11 @@ class CustomModelForMultipleChoice(nn.Module):
         outputs = self.base_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            output_hidden_states=output_hidden_states,
-            output_attentions=output_attentions,
-            **kwargs
         )
         
         # Extract the pooled output and other model outputs
         if hasattr(outputs, 'pooler_output'):
             pooled_output = outputs.pooler_output
-            last_hidden_state = outputs.last_hidden_state
             hidden_states = outputs.hidden_states if output_hidden_states else None
             attentions = outputs.attentions if output_attentions else None
         else:
@@ -346,7 +340,6 @@ class CustomModelForMultipleChoice(nn.Module):
                 attentions = outputs[2] if len(outputs) > 2 and output_attentions else None
                 pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
             else:
-                last_hidden_state = outputs.last_hidden_state
                 hidden_states = outputs.hidden_states if hasattr(outputs, 'hidden_states') else None
                 attentions = outputs.attentions if hasattr(outputs, 'attentions') else None
                 pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
@@ -369,7 +362,6 @@ class CustomModelForMultipleChoice(nn.Module):
             'logits': reshaped_logits,
             'hidden_states': hidden_states,
             'attentions': attentions,
-            'last_hidden_state': last_hidden_state
         }
     
     def get_input_embeddings(self):
