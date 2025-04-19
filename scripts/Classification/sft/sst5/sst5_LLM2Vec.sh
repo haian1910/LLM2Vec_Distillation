@@ -1,4 +1,4 @@
-#! /bin/bash
+nó#! /bin/bash
 GPUS=(0 1 2 3 4 5 6 7)
 # GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
@@ -30,8 +30,8 @@ LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=32
 EPOCH=2
-LORA_RANK=4
-LORA_ALPHA=8
+LORA_RANK=16
+LORA_ALPHA=32
 LORA_DROPOUT=0.1
 # length
 MAX_LENGTH=128
