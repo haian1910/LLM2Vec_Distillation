@@ -6,8 +6,7 @@ from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
-    AutoModel,  
-    AutoModelForMultipleChoice,
+    AutoModel,
 )
 from peft import (
     PeftModel,
@@ -15,11 +14,135 @@ from peft import (
     TaskType,
     get_peft_model
 )
-from utils import log_rank
+from QuestionAnswer.utils import log_rank
 from huggingface_hub import login
 
-#login(token="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")
+import os
+
 login(token="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")
+
+class MultipleChoiceModel(nn.Module):
+    """Wrapper for multiple choice tasks using a base model"""
+    def __init__(self, base_model, num_choices=8):
+        super(MultipleChoiceModel, self).__init__()
+        self.base_model = base_model
+        self.num_choices = num_choices
+        self.config = base_model.config  # Expose config for save_pretrained
+        
+        # Get the hidden size from the base model
+        self.hidden_size = base_model.config.hidden_size
+        
+        # Create a classifier for multiple choice
+        self.classifier = nn.Linear(self.hidden_size, 1)
+        
+        # Check model type to determine which arguments it accepts
+        self.uses_token_type_ids = "llama" not in base_model.__class__.__name__.lower() and "mistral" not in base_model.__class__.__name__.lower()
+    
+    def forward(self, input_ids=None, attention_mask=None, position_ids=None, token_type_ids=None, labels=None, **kwargs):
+        batch_size = input_ids.size(0) if input_ids is not None else attention_mask.size(0)
+        num_choices = input_ids.size(1) if input_ids is not None else attention_mask.size(1)
+        
+        # Reshape input tensors to combine batch and choice dimensions
+        flat_input_ids = input_ids.view(-1, input_ids.size(-1)) if input_ids is not None else None
+        flat_attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
+        flat_position_ids = position_ids.view(-1, position_ids.size(-1)) if position_ids is not None else None
+        
+        # Filter kwargs to only include parameters accepted by the base model
+        filtered_kwargs = {}
+        for key, value in kwargs.items():
+            # Skip labels and token_type_ids for Llama models
+            if key == 'labels':
+                continue  # Don't pass labels to base model
+            if key == 'token_type_ids' and not self.uses_token_type_ids:
+                continue  # Don't pass token_type_ids if model doesn't use them
+            
+            # Reshape tensors if they have batch and choice dimensions
+            if isinstance(value, torch.Tensor) and value.dim() > 2:
+                filtered_kwargs[key] = value.view(-1, value.size(-1))
+            else:
+                filtered_kwargs[key] = value
+        
+        # Only pass token_type_ids if the model supports it
+        if self.uses_token_type_ids and token_type_ids is not None:
+            flat_token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1))
+            filtered_kwargs["token_type_ids"] = flat_token_type_ids
+        
+        # Get outputs from the base model with filtered kwargs
+        outputs = self.base_model(
+            input_ids=flat_input_ids,
+            attention_mask=flat_attention_mask,
+            position_ids=flat_position_ids,
+            **filtered_kwargs
+        )
+        
+        # Get the appropriate representation based on model architecture
+        if hasattr(outputs, "pooler_output"):
+            pooled_output = outputs.pooler_output
+        else:
+            # Use the [CLS] token representation (first token)
+            pooled_output = outputs.last_hidden_state[:, 0]
+        
+        # Apply the classifier to get logits for each choice
+        logits = self.classifier(pooled_output)
+        reshaped_logits = logits.view(batch_size, num_choices)
+        
+        loss = None
+        if labels is not None:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(reshaped_logits, labels)
+        
+        # Create a compatible output structure matching HuggingFace's transformers output format
+        class ModelOutput:
+            def __init__(self, loss, logits):
+                self.loss = loss
+                self.logits = logits
+        
+        return ModelOutput(loss=loss, logits=reshaped_logits)
+    
+    # Add HuggingFace compatibility methods
+    def save_pretrained(self, save_directory, safe_serialization=True, **kwargs):
+        """Save the model to the specified directory."""
+        # Save the classifier separately
+        os.makedirs(save_directory, exist_ok=True)
+        classifier_path = os.path.join(save_directory, "classifier.pt")
+        torch.save(self.classifier.state_dict(), classifier_path)
+        
+        # Save wrapper config
+        config_dict = {
+            "num_choices": self.num_choices,
+            "uses_token_type_ids": self.uses_token_type_ids
+        }
+        with open(os.path.join(save_directory, "multiple_choice_config.json"), "w") as f:
+            json.dump(config_dict, f)
+        
+        # Save the base model
+        return self.base_model.save_pretrained(save_directory, safe_serialization=safe_serialization, **kwargs)
+    
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        """Load from pretrained."""
+        # First load the base model
+        base_model = AutoModel.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+        
+        # Load classifier config
+        config_path = os.path.join(pretrained_model_name_or_path, "multiple_choice_config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config_dict = json.load(f)
+            num_choices = config_dict.get("num_choices", 8)
+        else:
+            num_choices = kwargs.pop("num_choices", 8)
+        
+        # Create the wrapper
+        model = cls(base_model, num_choices=num_choices)
+        
+        # Load classifier weights if they exist
+        classifier_path = os.path.join(pretrained_model_name_or_path, "classifier.pt")
+        if os.path.exists(classifier_path):
+            classifier_state_dict = torch.load(classifier_path, map_location="cpu")
+            model.classifier.load_state_dict(classifier_state_dict)
+        
+        return model
 
 
 class Distiller(nn.Module):
@@ -60,6 +183,9 @@ class Distiller(nn.Module):
                            help='path for the vocab alignment file (token, student-to-teacher)')
         group.add_argument("--student-to-teacher-id-mapping", type=str, default=None,
                            help='path for the vocab alignment file (id, student-to-teacher)')
+        # Add multiple choice specific args
+        group.add_argument("--num-choices", type=int, default=8,
+                           help='number of choices for multiple choice task')
         return parser
     
     def load_tokenizer(self, path):
@@ -139,53 +265,50 @@ class Distiller(nn.Module):
         else:
             raise NotImplementedError("Invalid model_dtype for f`{self.args.model_dtype}`")
 
-        if self.args.peft is not None: #for LLM2Vec
+        if self.args.peft is not None: # for LLM2Vec
             if self.args.peft == "lora":
-                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp", trust_remote_code=True)
+                # Load the base model configuration
+                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp", trust_remote_code=True)
                 config.is_model_parallel = False
-        
-                # lấy tokenizer
-                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
+                
+                # Get tokenizer
+                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
                 
                 if hasattr(config, "n_embed"):
                     self.hidden_size = config.n_embed
                 else:
                     self.hidden_size = config.hidden_size
-        
-                config.num_labels = self.args.num_labels
-                model = AutoModelForCausalLM.from_pretrained(
-                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+                
+                # Load the base model using AutoModel instead of AutoModelForSequenceClassification
+                base_model = AutoModel.from_pretrained(
+                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
                     config=config,
                     device_map=None,
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
-                
-                model.config.pad_token_id = 2
-                    
-                model = PeftModel.from_pretrained(
-                    model,
-                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
-                )
-                model = model.merge_and_unload()  # This can take several minutes on cpu
 
-                model = PeftModel.from_pretrained(
-                    model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+                if hasattr(base_model.config, "pad_token_id"):
+                    base_model.config.pad_token_id = 2
+                
+                # Apply PEFT
+                base_model = PeftModel.from_pretrained(
+                    base_model,
+                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
                 )
+                base_model = base_model.merge_and_unload()  # This can take several minutes on cpu
+
+                base_model = PeftModel.from_pretrained(
+                    base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
+                )
+                
+                # Wrap the base model with our multiple choice model
+                model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices)
 
                 # Apply new LoRA adapter for fine-tuning
-                
-                '''if self.args.do_train:
-                    peft_config = LoraConfig(
-                        task_type=TaskType.SEQ_CLS,  # Use SEQ_CLS instead of FEATURE_EXTRACTION
-                        inference_mode=(not self.args.do_train),
-                        r=self.args.peft_lora_r,
-                        lora_alpha=self.args.peft_lora_alpha,
-                        lora_dropout=self.args.peft_lora_dropout,
-                    )'''
                 if self.args.do_train:
                     peft_config = LoraConfig(
-                        task_type=TaskType.SEQ_CLS,  # SEQ_CLS là hợp lý nếu đang làm classification
+                        task_type=TaskType.FEATURE_EXTRACTION,  # Use FEATURE_EXTRACTION for AutoModel
                         inference_mode=(not self.args.do_train),
                         r=self.args.peft_lora_r,
                         lora_alpha=self.args.peft_lora_alpha,
@@ -195,35 +318,47 @@ class Distiller(nn.Module):
                             "gate_proj", "up_proj", "down_proj"
                         ]
                     )
-                    model = get_peft_model(model, peft_config)
-
+                    # Apply PEFT to the base model
+                    base_model = get_peft_model(base_model, peft_config)
+                    base_model.print_trainable_parameters()
+                    
+                    # Update our wrapped model to use the PEFT-adapted base model
+                    model.base_model = base_model
             else:
-                raise NotImplementedError
-        else: #for BERT
+                raise NotImplementedError(f"PEFT method {self.args.peft} not implemented for multiple choice tasks")
+        else: # for BERT
             config = AutoConfig.from_pretrained("bert-base-uncased", trust_remote_code=True)
             config.is_model_parallel = False
     
-            # lấy tokenizer
+            # Get tokenizer
             tokenizer = self.load_tokenizer("bert-base-uncased")
             
             if hasattr(config, "n_embed"):
                 self.hidden_size = config.n_embed
             else:
                 self.hidden_size = config.hidden_size
-            config.num_labels = self.args.num_labels
-            model = AutoModel.from_pretrained(
+                
+            # Load base model using AutoModel
+            base_model = AutoModel.from_pretrained(
                 "bert-base-uncased", 
                 config=config, 
                 device_map=None, 
                 torch_dtype=self.dtype,
-                trust_remote_code=True,)
+                trust_remote_code=True,
+            )
+            
+            # Wrap with multiple choice model
+            model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices)
+            
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
 
-        model = CustomModelForMultipleChoice(model, config)
         if self.args.gradient_checkpointing:
-            model.gradient_checkpointing_enable()
+            if hasattr(model, "gradient_checkpointing_enable"):
+                model.gradient_checkpointing_enable()
+            elif hasattr(model.base_model, "gradient_checkpointing_enable"):
+                model.base_model.gradient_checkpointing_enable()
 
         return model, tokenizer
     
@@ -241,33 +376,43 @@ class Distiller(nn.Module):
             self.teacher_hidden_size = config.n_embed
         else:
             self.teacher_hidden_size = config.hidden_size
-
-        config.num_labels = self.args.num_labels
-        model = AutoModelForMultipleChoice.from_pretrained(
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+        
+        # For teacher model, use AutoModel instead of AutoModelForSequenceClassification
+        base_model = AutoModel.from_pretrained(
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
             config=config,
             device_map=None,
             torch_dtype=self.dtype,
             trust_remote_code=True,
         )
-        model.config.pad_token_id = 2
-        teacher_model = PeftModel.from_pretrained(
-            model,
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+        
+        if hasattr(base_model.config, "pad_token_id"):
+            base_model.config.pad_token_id = 2
+        
+        # Apply PEFT
+        teacher_base_model = PeftModel.from_pretrained(
+            base_model,
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
         )    
         
-        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
+        teacher_base_model = teacher_base_model.merge_and_unload()  # This can take several minutes on cpu
 
-        # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
-        teacher_model = PeftModel.from_pretrained(
-            teacher_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
+        # Loading unsupervised SimCSE model
+        teacher_base_model = PeftModel.from_pretrained(
+            teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
-        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
-        teacher_model = PeftModel.from_pretrained(
-            teacher_model,
+        teacher_base_model = teacher_base_model.merge_and_unload()  # This can take several minutes on cpu
+        
+        # Load the fine-tuned teacher model
+        teacher_base_model = PeftModel.from_pretrained(
+            teacher_base_model,
             self.args.teacher_model_path,
         )
+        
+        # Wrap with multiple choice model
+        teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
       
+        # Freeze the teacher model parameters
         for param in teacher_model.parameters():
             param.requires_grad = False
         
@@ -294,6 +439,7 @@ class Distiller(nn.Module):
     def forward(self, criterion, batch, logging_output, loss_denom):
         input_data = batch["input_batch"]
         output_data = batch["output_batch"]
+        
         loss, logging_output = criterion(
             self,
             input_data, 
@@ -302,69 +448,3 @@ class Distiller(nn.Module):
             loss_denom,
         )
         return loss, logging_output
-class CustomModelForMultipleChoice(nn.Module):
-    def __init__(self, base_model, config):
-        super(CustomModelForMultipleChoice, self).__init__()
-        self.base_model = base_model
-        self.config = config
-        self.num_labels = config.num_labels
-        self.dropout = nn.Dropout(config.hidden_dropout_prob if hasattr(config, 'hidden_dropout_prob') else 0.1)
-        self.classifier = nn.Linear(config.hidden_size, 1)
-        
-    def forward(self, input_ids=None, attention_mask=None, token_type_ids=None, labels=None, output_hidden_states=True, output_attentions=True, **kwargs):
-        # Flatten input for processing
-        batch_size = input_ids.size(0)
-        num_choices = input_ids.size(1)
-        
-        # Reshape inputs to match the base model's expectations
-        input_ids = input_ids.view(-1, input_ids.size(-1))
-        attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
-        token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1)) if token_type_ids is not None else None
-        
-        # Get outputs from the base model
-        outputs = self.base_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_hidden_states=output_hidden_states,
-            output_attentions=output_attentions,
-        )
-        
-        # Extract the pooled output and other model outputs
-        if hasattr(outputs, 'pooler_output'):
-            pooled_output = outputs.pooler_output
-            hidden_states = outputs.hidden_states if output_hidden_states else None
-            attentions = outputs.attentions if output_attentions else None
-        else:
-            # For models without pooler or with tuple outputs
-            if isinstance(outputs, tuple):
-                last_hidden_state = outputs[0]
-                hidden_states = outputs[1] if len(outputs) > 1 and output_hidden_states else None
-                attentions = outputs[2] if len(outputs) > 2 and output_attentions else None
-                pooled_output = last_hidden_state[:, 0]  # Use [CLS] token
-            else:
-                hidden_states = outputs.hidden_states[-1] if hasattr(outputs, 'hidden_states') else None
-                attentions = outputs.attentions if hasattr(outputs, 'attentions') else None
-                pooled_output = hidden_states[-1]  # Use [CLS] token
-        
-        # Apply dropout and classification
-        pooled_output = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output)
-        
-        # Reshape logits back to [batch_size, num_choices]
-        reshaped_logits = logits.view(batch_size, num_choices)
-        
-        
-        # Return a comprehensive dictionary with all outputs
-        class OutputObject:
-            def __init__(self, logits, hidden_states, attentions):
-                self.logits = logits
-                self.hidden_states = hidden_states
-                self.attentions = attentions
-
-        return OutputObject(reshaped_logits, hidden_states, attentions)
-    
-    def get_input_embeddings(self):
-        return self.base_model.get_input_embeddings()
-    
-    def set_input_embeddings(self, value):
-        self.base_model.set_input_embeddings(value)
