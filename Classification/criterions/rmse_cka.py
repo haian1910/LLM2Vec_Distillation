@@ -391,6 +391,8 @@ class RMSE_CKA(CrossEntropyLoss):
             return att_loss_total
     
         att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 1) 
+        print("rmse_loss:", att_loss_total_1)
+        print("cka_loss:", att_loss_total_2)
         
         outputs = model(
             input_ids=input_data["input_ids"],
