@@ -189,7 +189,7 @@ class RMSE_CKA(CrossEntropyLoss):
             reciprocal_mapping = align_text_tokens(text)
             n = len(reciprocal_mapping)
             
-            top_k = extract_top_k_tokens(text, n//3)
+            top_k = extract_top_k_tokens(text, n//2)
             top_k_tokens_set = {token for token, _ in top_k}
             # Lọc reciprocal mapping chỉ giữ các token teacher có trong top k
             reciprocal_mapping_top_k = {t: s for t, s in reciprocal_mapping.items() if t in top_k_tokens_set}
