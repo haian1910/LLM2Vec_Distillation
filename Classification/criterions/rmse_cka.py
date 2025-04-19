@@ -405,7 +405,7 @@ class RMSE_CKA(CrossEntropyLoss):
             output_data["labels"],
         )[0]
         log = {}
-
+        print("loss_ce:", loss_ce)
         loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (10*att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
         log["loss"] = loss
 
