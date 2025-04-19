@@ -101,7 +101,6 @@ class MultipleChoiceModel(nn.Module):
     
     # Add HuggingFace compatibility methods
     def save_pretrained(self, save_directory, safe_serialization=True, **kwargs):
-        """Save the model to the specified directory."""
         # Save the classifier separately
         os.makedirs(save_directory, exist_ok=True)
         classifier_path = os.path.join(save_directory, "classifier.pt")
@@ -120,7 +119,6 @@ class MultipleChoiceModel(nn.Module):
     
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
-        """Load from pretrained."""
         # First load the base model
         base_model = AutoModel.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
         
@@ -365,12 +363,12 @@ class Distiller(nn.Module):
     def load_teacher_model(self):
         log_rank("Loading teacher model...")
         config = AutoConfig.from_pretrained(
-            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
             trust_remote_code=True
         )
         config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
