@@ -19,7 +19,7 @@ BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="/content/drive/MyDrive/ColabNotebooks/data_distillation/SentencePair/Check_point_scitail/Checkpoint_teacher/criterion=cross_entropy__lora-rank=16-alpha=32-dropout=0.1-bf16__epoch=2__bsz=16x1x1=16__lr=0.00001/epoch1_step1444_loss0.1227"
+TEACHER_MODEL_PATH="link checkpoint"
 # data
 DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/Classification/sst5"
 NUM_LABELS=5
@@ -94,13 +94,7 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
 
 
 export NCCL_DEBUG=""
