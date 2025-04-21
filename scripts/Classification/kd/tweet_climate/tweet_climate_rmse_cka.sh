@@ -21,8 +21,8 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="link checkpoint"
 # data
-DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/Classification/patent"
-NUM_LABELS=9
+DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/Classification/tweet_climate"
+NUM_LABELS=3
 # task
 TASK="rmse_cka"
 # hp
@@ -30,7 +30,7 @@ BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
-EPOCH=5
+EPOCH=2
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
