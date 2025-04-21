@@ -36,7 +36,8 @@ class MultipleChoiceModel(nn.Module):
         self.classifier = nn.Linear(self.hidden_size, 1)
         
         # Check model type to determine which arguments it accepts
-        self.uses_token_type_ids = "llama" not in base_model.__class__.__name__.lower() and "mistral" not in base_model.__class__.__name__.lower()
+        # self.uses_token_type_ids = "llama" not in base_model.__class__.__name__.lower() and "mistral" not in base_model.__class__.__name__.lower()
+        self.uses_token_type_ids = hasattr(base_model.config, "type_vocab_size") and base_model.config.type_vocab_size > 0
     
     def forward(self, input_ids=None, attention_mask=None, position_ids=None, token_type_ids=None, labels=None, **kwargs):
         batch_size = input_ids.size(0) if input_ids is not None else attention_mask.size(0)
@@ -50,7 +51,7 @@ class MultipleChoiceModel(nn.Module):
         # Filter kwargs to only include parameters accepted by the base model
         filtered_kwargs = {}
         for key, value in kwargs.items():
-            # Skip labels and token_type_ids for Llama models
+            # Skip labels as they'll be handled separately
             if key == 'labels':
                 continue  # Don't pass labels to base model
             if key == 'token_type_ids' and not self.uses_token_type_ids:
@@ -66,6 +67,10 @@ class MultipleChoiceModel(nn.Module):
         if self.uses_token_type_ids and token_type_ids is not None:
             flat_token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1))
             filtered_kwargs["token_type_ids"] = flat_token_type_ids
+        
+        # Make sure we get hidden states and attentions
+        filtered_kwargs["output_hidden_states"] = True
+        filtered_kwargs["output_attentions"] = True
         
         # Get outputs from the base model with filtered kwargs
         outputs = self.base_model(
@@ -91,13 +96,23 @@ class MultipleChoiceModel(nn.Module):
             loss_fct = nn.CrossEntropyLoss()
             loss = loss_fct(reshaped_logits, labels)
         
-        # Create a compatible output structure matching HuggingFace's transformers output format
-        class ModelOutput:
-            def __init__(self, loss, logits):
+        # Create a comprehensive output structure matching HuggingFace's transformers output format
+        class MultipleChoiceModelOutput:
+            def __init__(self, loss, logits, hidden_states, attentions, last_hidden_state=None):
                 self.loss = loss
                 self.logits = logits
+                self.hidden_states = hidden_states
+                self.attentions = attentions
+                self.last_hidden_state = last_hidden_state
         
-        return ModelOutput(loss=loss, logits=reshaped_logits)
+        # Return complete output with original hidden states and attentions
+        return MultipleChoiceModelOutput(
+            loss=loss,
+            logits=reshaped_logits,
+            hidden_states=outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
+            attentions=outputs.attentions if hasattr(outputs, "attentions") else None,
+            last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None
+        )
     
     # Add HuggingFace compatibility methods
     def save_pretrained(self, save_directory, safe_serialization=True, **kwargs):
