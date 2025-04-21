@@ -21,16 +21,16 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
-DATA_DIR="${BASE_PATH}/data/scitail/"
-NUM_LABELS=2
+DATA_DIR="${BASE_PATH}/data/control/"
+NUM_LABELS=3
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=16
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=16
-EPOCH=2
+EPOCH=3
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
