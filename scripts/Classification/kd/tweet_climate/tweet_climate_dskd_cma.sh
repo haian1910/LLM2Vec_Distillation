@@ -22,7 +22,7 @@ TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
 DATA_DIR="${BASE_PATH}/data/tweet_climate/"
-NUM_LABELS=9
+NUM_LABELS=3
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
