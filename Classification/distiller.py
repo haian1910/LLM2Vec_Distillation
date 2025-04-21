@@ -19,8 +19,9 @@ from utils import log_rank
 from huggingface_hub import login
 
 import os
-token = os.getenv("HF_TOKEN")
-login(token=token)
+#token = os.getenv("HF_TOKEN")
+#login(token=token)
+login(token="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")
 
 
 class Distiller(nn.Module):
