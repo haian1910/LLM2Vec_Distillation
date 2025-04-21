@@ -26,10 +26,10 @@ NUM_LABELS=9
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
-BATCH_SIZE=16
+BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=16
+EVAL_BATCH_SIZE=4
 EPOCH=2
 KD_RATE=0.4
 KD_TEMP=2.0
