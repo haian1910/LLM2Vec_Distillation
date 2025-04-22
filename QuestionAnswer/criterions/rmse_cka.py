@@ -160,7 +160,8 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Lấy output và attention weights
             with torch.no_grad():
-                outputs = teacher_model(**inputs,
+                teacher_base_model = teacher_model.base_model
+                outputs = teacher_base_model(**inputs,
                 output_hidden_states=True,
                 output_attentions=True)
 
@@ -228,6 +229,8 @@ class RMSE_CKA(CrossEntropyLoss):
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
+            teacher_base_model = teacher_model.base_model
+            student_base_model = student_model.base_model
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
 
@@ -274,8 +277,17 @@ class RMSE_CKA(CrossEntropyLoss):
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping)
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+                teacher_outputs = teacher_base_model(
+                    input_ids=input_ids_teacher, 
+                    attention_mask=attention_mask_teacher, 
+                    output_attentions=True
+                )
+                
+                student_outputs = student_base_model(
+                    input_ids=input_ids_student, 
+                    attention_mask=attention_mask_student, 
+                    output_attentions=True
+                )
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -324,11 +336,29 @@ class RMSE_CKA(CrossEntropyLoss):
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
+            teacher_base_model = teacher_model.base_model
+            student_base_model = student_model.base_model
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
             # Duyệt qua từng sample trong batch
@@ -352,8 +382,17 @@ class RMSE_CKA(CrossEntropyLoss):
                 # print('Lấy xong mapping')
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+                teacher_outputs = teacher_base_model(
+                    input_ids=input_ids_teacher, 
+                    attention_mask=attention_mask_teacher, 
+                    output_attentions=True
+                )
+                
+                student_outputs = student_base_model(
+                    input_ids=input_ids_student, 
+                    attention_mask=attention_mask_student, 
+                    output_attentions=True
+                )
                 # print('Đã chạy mô hình')
 
                 # Lấy attention weights từ outputs
