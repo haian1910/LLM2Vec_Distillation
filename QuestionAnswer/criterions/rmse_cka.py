@@ -232,6 +232,23 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                # Handle case when input_ids is a tensor
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
             # Duyệt qua từng sample trong batch
@@ -311,6 +328,23 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                # Handle case when input_ids is a tensor
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
             # Duyệt qua từng sample trong batch
