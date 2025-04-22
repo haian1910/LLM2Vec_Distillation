@@ -146,6 +146,7 @@ class RMSE_CKA(CrossEntropyLoss):
         # Hàm trích xuất top k tokens dựa trên attention của lớp cuối cùng
         def extract_top_k_tokens(text, k):
             # Tiền xử lý văn bản: loại stopwords và dấu câu
+            device = next(teacher_model.parameters()).device
             text = preprocess_text(text)
 
             # Load model và tokenizer
@@ -155,7 +156,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Tokenize văn bản
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-            inputs = {key: value.to(teacher_model.device) for key, value in inputs.items()}
+            inputs = {key: value.to(device) for key, value in inputs.items()}
 
             # Lấy output và attention weights
             with torch.no_grad():
@@ -221,7 +222,7 @@ class RMSE_CKA(CrossEntropyLoss):
         def compute_att_loss_1(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
-            device = teacher_model.device
+            device = next(teacher_model.parameters()).device
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
@@ -232,7 +233,6 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
-                # Handle case when input_ids is a tensor
                 if torch.is_tensor(input_ids):
                     # If it's a 2D tensor (batch, sequence_length), take the first item
                     if input_ids.dim() > 1:
@@ -250,6 +250,7 @@ class RMSE_CKA(CrossEntropyLoss):
                 
                 # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
+
 
             # Duyệt qua từng sample trong batch
             for i in range(batch_size):
@@ -314,11 +315,11 @@ class RMSE_CKA(CrossEntropyLoss):
 
             return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
+        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 1) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
-            device = teacher_model.device
+            device = next(teacher_model.parameters()).device
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
@@ -328,23 +329,6 @@ class RMSE_CKA(CrossEntropyLoss):
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
-                # Handle case when input_ids is a tensor
-                if torch.is_tensor(input_ids):
-                    # If it's a 2D tensor (batch, sequence_length), take the first item
-                    if input_ids.dim() > 1:
-                        # Extract the first item from the batch
-                        input_ids = input_ids[0].cpu().tolist()
-                    else:
-                        # Convert to list if it's a 1D tensor
-                        input_ids = input_ids.cpu().tolist()
-                
-                # Handle case when input_ids is already a list
-                elif isinstance(input_ids, list):
-                    # If it's a nested list, take the first item
-                    if isinstance(input_ids[0], list):
-                        input_ids = input_ids[0]
-                
-                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
             # Duyệt qua từng sample trong batch
@@ -424,10 +408,10 @@ class RMSE_CKA(CrossEntropyLoss):
 
             return att_loss_total
     
-        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 3) 
-        print("att_loss_total_1:", att_loss_total_1)
-        print("att_loss_total_2:", att_loss_total_2)
-
+        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 1) 
+        print("rmse_loss:", att_loss_total_1)
+        print("cka_loss:", att_loss_total_2)
+        
         outputs = model(
             input_ids=input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
@@ -441,7 +425,7 @@ class RMSE_CKA(CrossEntropyLoss):
             output_data["labels"],
         )[0]
         log = {}
-
+        print("loss_ce:", loss_ce)
         loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
         log["loss"] = loss
 
