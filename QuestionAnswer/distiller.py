@@ -23,7 +23,7 @@ login(token="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")
 
 class MultipleChoiceModel(nn.Module):
     """Wrapper for multiple choice tasks using a base model"""
-    def __init__(self, base_model, num_choices=8, device):
+    def __init__(self, base_model, num_choices=8, device=None):
         super(MultipleChoiceModel, self).__init__()
         self.base_model = base_model
         self.num_choices = num_choices
@@ -98,12 +98,13 @@ class MultipleChoiceModel(nn.Module):
         
         # Create a comprehensive output structure matching HuggingFace's transformers output format
         class MultipleChoiceModelOutput:
-            def __init__(self, loss, logits, hidden_states, attentions, last_hidden_state=None):
+            def __init__(self, loss, logits, hidden_states, attentions, last_hidden_state=None, device=None):
                 self.loss = loss
                 self.logits = logits
                 self.hidden_states = hidden_states
                 self.attentions = attentions
                 self.last_hidden_state = last_hidden_state
+                self.device = device
         
         # Return complete output with original hidden states and attentions
         return MultipleChoiceModelOutput(
@@ -111,7 +112,8 @@ class MultipleChoiceModel(nn.Module):
             logits=reshaped_logits,
             hidden_states=outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
             attentions=outputs.attentions if hasattr(outputs, "attentions") else None,
-            last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None
+            last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None,
+            device=self.device
         )
     
     # Add HuggingFace compatibility methods
@@ -318,7 +320,7 @@ class Distiller(nn.Module):
                 )
                 
                 # Wrap the base model with our multiple choice model
-                model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices, self.device)
+                model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices, device=self.device)
 
                 # Apply new LoRA adapter for fine-tuning
                 if self.args.do_train:
@@ -363,7 +365,7 @@ class Distiller(nn.Module):
             )
             
             # Wrap with multiple choice model
-            model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices, self.device)
+            model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices, device=self.device)
             
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
@@ -444,7 +446,7 @@ class Distiller(nn.Module):
                 num_choices = self.args.num_choices
                 log_rank(f"No multiple_choice_config.json found, using default {num_choices} choices")
                 
-            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=num_choices, self.device)
+            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=num_choices, device=self.device)
             
             # Load classifier if available
             if os.path.exists(classifier_path):
@@ -499,7 +501,7 @@ class Distiller(nn.Module):
                 self.args.teacher_model_path,
             )
             
-            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices, self.device)
+            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices, device=self.device)
         
         # Freeze the teacher model parameters
         for param in teacher_model.parameters():
