@@ -89,12 +89,12 @@ class MultipleChoiceModel(nn.Module):
         
         # Apply the classifier to get logits for each choice
         logits = self.classifier(pooled_output)
-        reshaped_logits = logits.view(batch_size, num_choices)
+        # reshaped_logits = logits.view(batch_size, num_choices)
         
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(reshaped_logits, labels)
+            loss = loss_fct(logits, labels)
         
         # Create a comprehensive output structure matching HuggingFace's transformers output format
         class MultipleChoiceModelOutput:
@@ -109,7 +109,7 @@ class MultipleChoiceModel(nn.Module):
         # Return complete output with original hidden states and attentions
         return MultipleChoiceModelOutput(
             loss=loss,
-            logits=reshaped_logits,
+            logits=logits,
             hidden_states=outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
             attentions=outputs.attentions if hasattr(outputs, "attentions") else None,
             last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None,
