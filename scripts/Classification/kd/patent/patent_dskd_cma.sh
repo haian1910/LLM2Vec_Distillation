@@ -30,8 +30,8 @@ BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
-EPOCH=2
-KD_RATE=0.4
+EPOCH=3
+KD_RATE=0.5
 KD_TEMP=2.0
 # length
 MAX_LENGTH=512
@@ -89,7 +89,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
