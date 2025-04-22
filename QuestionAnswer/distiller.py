@@ -23,31 +23,32 @@ login(token="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")
 
 class MultipleChoiceModel(nn.Module):
     """Wrapper for multiple choice tasks using a base model"""
-    def __init__(self, base_model, num_choices=8, device=None):
+    def __init__(self, base_model, num_choices=8):
         super(MultipleChoiceModel, self).__init__()
         self.base_model = base_model
         self.num_choices = num_choices
         self.config = base_model.config  # Expose config for save_pretrained
-        self.device = device
+        
         # Get the hidden size from the base model
         self.hidden_size = base_model.config.hidden_size
-        
+
         # Create a classifier for multiple choice
         self.classifier = nn.Linear(self.hidden_size, 1)
-        
+
         # Check model type to determine which arguments it accepts
         # self.uses_token_type_ids = "llama" not in base_model.__class__.__name__.lower() and "mistral" not in base_model.__class__.__name__.lower()
         self.uses_token_type_ids = hasattr(base_model.config, "type_vocab_size") and base_model.config.type_vocab_size > 0
-    
+    def device(self):
+        return next(self.parameters()).device
     def forward(self, input_ids=None, attention_mask=None, position_ids=None, token_type_ids=None, labels=None, **kwargs):
         batch_size = input_ids.size(0) if input_ids is not None else attention_mask.size(0)
         num_choices = input_ids.size(1) if input_ids is not None else attention_mask.size(1)
-        
+
         # Reshape input tensors to combine batch and choice dimensions
         flat_input_ids = input_ids.view(-1, input_ids.size(-1)) if input_ids is not None else None
         flat_attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
         flat_position_ids = position_ids.view(-1, position_ids.size(-1)) if position_ids is not None else None
-        
+
         # Filter kwargs to only include parameters accepted by the base model
         filtered_kwargs = {}
         for key, value in kwargs.items():
@@ -56,22 +57,22 @@ class MultipleChoiceModel(nn.Module):
                 continue  # Don't pass labels to base model
             if key == 'token_type_ids' and not self.uses_token_type_ids:
                 continue  # Don't pass token_type_ids if model doesn't use them
-            
+
             # Reshape tensors if they have batch and choice dimensions
             if isinstance(value, torch.Tensor) and value.dim() > 2:
                 filtered_kwargs[key] = value.view(-1, value.size(-1))
             else:
                 filtered_kwargs[key] = value
-        
+
         # Only pass token_type_ids if the model supports it
         if self.uses_token_type_ids and token_type_ids is not None:
             flat_token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1))
             filtered_kwargs["token_type_ids"] = flat_token_type_ids
-        
+
         # Make sure we get hidden states and attentions
         filtered_kwargs["output_hidden_states"] = True
         filtered_kwargs["output_attentions"] = True
-        
+
         # Get outputs from the base model with filtered kwargs
         outputs = self.base_model(
             input_ids=flat_input_ids,
@@ -79,43 +80,41 @@ class MultipleChoiceModel(nn.Module):
             position_ids=flat_position_ids,
             **filtered_kwargs
         )
-        
+
         # Get the appropriate representation based on model architecture
         if hasattr(outputs, "pooler_output"):
             pooled_output = outputs.pooler_output
         else:
             # Use the [CLS] token representation (first token)
             pooled_output = outputs.last_hidden_state[:, 0]
-        
+
         # Apply the classifier to get logits for each choice
         logits = self.classifier(pooled_output)
-        # reshaped_logits = logits.view(batch_size, num_choices)
-        
+        reshaped_logits = logits.view(batch_size, num_choices)
+
         loss = None
         if labels is not None:
             loss_fct = nn.CrossEntropyLoss()
-            loss = loss_fct(logits, labels)
-        
+            loss = loss_fct(reshaped_logits, labels)
+
         # Create a comprehensive output structure matching HuggingFace's transformers output format
         class MultipleChoiceModelOutput:
-            def __init__(self, loss, logits, hidden_states, attentions, last_hidden_state=None, device=None):
+            def __init__(self, loss, logits, hidden_states, attentions, last_hidden_state=None):
                 self.loss = loss
                 self.logits = logits
                 self.hidden_states = hidden_states
                 self.attentions = attentions
                 self.last_hidden_state = last_hidden_state
-                self.device = device
-        
+
         # Return complete output with original hidden states and attentions
         return MultipleChoiceModelOutput(
             loss=loss,
-            logits=logits,
+            logits=reshaped_logits,
             hidden_states=outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
             attentions=outputs.attentions if hasattr(outputs, "attentions") else None,
-            last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None,
-            device=self.device
+            last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None
         )
-    
+
     # Add HuggingFace compatibility methods
     def save_pretrained(self, save_directory, safe_serialization=True, **kwargs):
         """Save the model to the specified directory."""
@@ -123,7 +122,7 @@ class MultipleChoiceModel(nn.Module):
         os.makedirs(save_directory, exist_ok=True)
         classifier_path = os.path.join(save_directory, "classifier.pt")
         torch.save(self.classifier.state_dict(), classifier_path)
-        
+
         # Save wrapper config
         config_dict = {
             "num_choices": self.num_choices,
@@ -131,16 +130,16 @@ class MultipleChoiceModel(nn.Module):
         }
         with open(os.path.join(save_directory, "multiple_choice_config.json"), "w") as f:
             json.dump(config_dict, f)
-        
+
         # Save the base model
         return self.base_model.save_pretrained(save_directory, safe_serialization=safe_serialization, **kwargs)
-    
+
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
         """Load from pretrained."""
         # First load the base model
         base_model = AutoModel.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
-        
+
         # Load classifier config
         config_path = os.path.join(pretrained_model_name_or_path, "multiple_choice_config.json")
         if os.path.exists(config_path):
@@ -149,16 +148,16 @@ class MultipleChoiceModel(nn.Module):
             num_choices = config_dict.get("num_choices", 8)
         else:
             num_choices = kwargs.pop("num_choices", 8)
-        
+
         # Create the wrapper
         model = cls(base_model, num_choices=num_choices)
-        
+
         # Load classifier weights if they exist
         classifier_path = os.path.join(pretrained_model_name_or_path, "classifier.pt")
         if os.path.exists(classifier_path):
             classifier_state_dict = torch.load(classifier_path, map_location="cpu")
             model.classifier.load_state_dict(classifier_state_dict)
-        
+
         return model
 
 
@@ -168,7 +167,7 @@ class Distiller(nn.Module):
         self.args = args
         self.device = device
         self.student_model, self.student_tokenizer = self.load_student_model()
-        
+
         if self.args.teacher_model_path is not None:
             self.teacher_model, self.teacher_tokenizers = self.load_teacher_model()
         else:
@@ -204,11 +203,11 @@ class Distiller(nn.Module):
         group.add_argument("--num-choices", type=int, default=8,
                            help='number of choices for multiple choice task')
         return parser
-    
+
     def load_tokenizer(self, path):
         tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
         return tokenizer
-        
+
     def set_and_load_existing_projectors(self):
         self.projectors = nn.ModuleDict()
         projector_config = json.load(open(self.args.projector_config_path))
@@ -246,7 +245,7 @@ class Distiller(nn.Module):
                         )
                     else:
                         raise NotImplementedError(f"Invalid structure for '{structure}'")
-                        
+
         # load existing projectors if already have
         self.load_existing_projectors()
 
@@ -269,10 +268,10 @@ class Distiller(nn.Module):
                 except:
                     log_rank("Not compatible for projector '{}'".format(key))
                     continue
-    
+
     def load_student_model(self):
         log_rank("Loading student model...")
-    
+
         if self.args.model_dtype == "fp32":
             self.dtype = torch.float32
         elif self.args.model_dtype == "bf16":
@@ -287,15 +286,15 @@ class Distiller(nn.Module):
                 # Load the base model configuration
                 config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp", trust_remote_code=True)
                 config.is_model_parallel = False
-                
+
                 # Get tokenizer
                 tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
-                
+
                 if hasattr(config, "n_embed"):
                     self.hidden_size = config.n_embed
                 else:
                     self.hidden_size = config.hidden_size
-                
+
                 # Load the base model using AutoModel instead of AutoModelForSequenceClassification
                 base_model = AutoModel.from_pretrained(
                     "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
@@ -307,7 +306,7 @@ class Distiller(nn.Module):
 
                 if hasattr(base_model.config, "pad_token_id"):
                     base_model.config.pad_token_id = 2
-                
+
                 # Apply PEFT
                 base_model = PeftModel.from_pretrained(
                     base_model,
@@ -318,9 +317,9 @@ class Distiller(nn.Module):
                 base_model = PeftModel.from_pretrained(
                     base_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
                 )
-                
+
                 # Wrap the base model with our multiple choice model
-                model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices, device=self.device)
+                model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices)
 
                 # Apply new LoRA adapter for fine-tuning
                 if self.args.do_train:
@@ -338,7 +337,7 @@ class Distiller(nn.Module):
                     # Apply PEFT to the base model
                     base_model = get_peft_model(base_model, peft_config)
                     base_model.print_trainable_parameters()
-                    
+
                     # Update our wrapped model to use the PEFT-adapted base model
                     model.base_model = base_model
             else:
@@ -346,15 +345,15 @@ class Distiller(nn.Module):
         else: # for BERT
             config = AutoConfig.from_pretrained("bert-base-uncased", trust_remote_code=True)
             config.is_model_parallel = False
-    
+
             # Get tokenizer
             tokenizer = self.load_tokenizer("bert-base-uncased")
-            
+
             if hasattr(config, "n_embed"):
                 self.hidden_size = config.n_embed
             else:
                 self.hidden_size = config.hidden_size
-                
+
             # Load base model using AutoModel
             base_model = AutoModel.from_pretrained(
                 "bert-base-uncased", 
@@ -363,10 +362,10 @@ class Distiller(nn.Module):
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
             )
-            
+
             # Wrap with multiple choice model
-            model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices, device=self.device)
-            
+            model = MultipleChoiceModel(base_model, num_choices=self.args.num_choices)
+
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
             ))
@@ -378,20 +377,20 @@ class Distiller(nn.Module):
                 model.base_model.gradient_checkpointing_enable()
 
         return model, tokenizer
-    
+
     def load_teacher_model(self):
         log_rank("Loading teacher model from checkpoint...")
-        
+
         if not os.path.exists(self.args.teacher_model_path):
             raise ValueError(f"Teacher model path does not exist: {self.args.teacher_model_path}")
-        
+
         # Check if this is a saved MultipleChoiceModel checkpoint
         multiple_choice_config_path = os.path.join(self.args.teacher_model_path, "multiple_choice_config.json")
         classifier_path = os.path.join(self.args.teacher_model_path, "classifier.pt")
         model_files = os.listdir(self.args.teacher_model_path)
-        
+
         log_rank(f"Found files in teacher model directory: {model_files}")
-        
+
         try:
             # Load the config to get hidden size
             config = AutoConfig.from_pretrained(self.args.teacher_model_path, trust_remote_code=True)
@@ -399,10 +398,10 @@ class Distiller(nn.Module):
                 self.teacher_hidden_size = config.n_embed
             else:
                 self.teacher_hidden_size = config.hidden_size
-                
+
             # Load the tokenizer
             tokenizer = self.load_tokenizer(self.args.teacher_model_path)
-            
+
             # Check if adapter_config.json exists, suggesting it's a PEFT model
             if "adapter_config.json" in model_files and "adapter_model.bin" in model_files:
                 log_rank("Found adapter files, loading as PEFT model")
@@ -415,10 +414,10 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
-                
+
                 if hasattr(base_model.config, "pad_token_id"):
                     base_model.config.pad_token_id = 2
-                    
+
                 # Load the adapter onto the base model
                 teacher_base_model = PeftModel.from_pretrained(
                     base_model,
@@ -435,7 +434,7 @@ class Distiller(nn.Module):
                     torch_dtype=self.dtype,
                     trust_remote_code=True,
                 )
-            
+
             # Create MultipleChoiceModel
             if os.path.exists(multiple_choice_config_path):
                 with open(multiple_choice_config_path, "r") as f:
@@ -445,9 +444,9 @@ class Distiller(nn.Module):
             else:
                 num_choices = self.args.num_choices
                 log_rank(f"No multiple_choice_config.json found, using default {num_choices} choices")
-                
-            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=num_choices, device=self.device)
-            
+
+            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=num_choices)
+
             # Load classifier if available
             if os.path.exists(classifier_path):
                 log_rank("Loading classifier weights")
@@ -455,11 +454,11 @@ class Distiller(nn.Module):
                 teacher_model.classifier.load_state_dict(classifier_state_dict)
             else:
                 log_rank("No classifier.pt found, using initialized classifier")
-            
+
         except Exception as e:
             log_rank(f"Error loading teacher model: {str(e)}")
             log_rank("Falling back to standard loading procedure...")
-            
+
             # Standard loading procedure
             config = AutoConfig.from_pretrained(
                 "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
@@ -467,12 +466,12 @@ class Distiller(nn.Module):
             )
             config.is_model_parallel = False
             tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
-            
+
             if hasattr(config, "n_embed"):
                 self.teacher_hidden_size = config.n_embed
             else:
                 self.teacher_hidden_size = config.hidden_size
-            
+
             base_model = AutoModel.from_pretrained(
                 "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
                 config=config,
@@ -480,36 +479,36 @@ class Distiller(nn.Module):
                 torch_dtype=self.dtype,
                 trust_remote_code=True,
             )
-            
+
             if hasattr(base_model.config, "pad_token_id"):
                 base_model.config.pad_token_id = 2
-            
+
             teacher_base_model = PeftModel.from_pretrained(
                 base_model,
                 "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             )    
-            
+
             teacher_base_model = teacher_base_model.merge_and_unload()
-            
+
             teacher_base_model = PeftModel.from_pretrained(
                 teacher_base_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
             )
             teacher_base_model = teacher_base_model.merge_and_unload()
-            
+
             teacher_base_model = PeftModel.from_pretrained(
                 teacher_base_model,
                 self.args.teacher_model_path,
             )
-            
-            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices, device=self.device)
-        
+
+            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
+
         # Freeze the teacher model parameters
         for param in teacher_model.parameters():
             param.requires_grad = False
-        
+
         log_rank("Teacher model loaded successfully")
         return teacher_model, tokenizer
-        
+
     def add_optimizer_param_group(self, optimizer):
         if hasattr(self, "projectors"):
             if self.args.projector_lr:
@@ -531,7 +530,7 @@ class Distiller(nn.Module):
     def forward(self, criterion, batch, logging_output, loss_denom):
         input_data = batch["input_batch"]
         output_data = batch["output_batch"]
-        
+
         loss, logging_output = criterion(
             self,
             input_data, 
