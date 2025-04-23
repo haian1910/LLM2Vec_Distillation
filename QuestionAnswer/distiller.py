@@ -19,7 +19,9 @@ from huggingface_hub import login
 
 import os
 
-login(token="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")
+#login(token="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")
+token = os.getenv("HF_TOKEN")
+login(token=token)
 
 class MultipleChoiceModel(nn.Module):
     """Wrapper for multiple choice tasks using a base model"""
