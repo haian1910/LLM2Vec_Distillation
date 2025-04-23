@@ -82,20 +82,14 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
 
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/classi_mean_pooling/distillation.py ${OPTS}"
 
 # ${CMD}
 ${CMD} \
