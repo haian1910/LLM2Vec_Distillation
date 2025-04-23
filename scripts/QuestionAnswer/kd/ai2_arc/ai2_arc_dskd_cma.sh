@@ -26,7 +26,7 @@ NUM_LABELS=8
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=2
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
@@ -89,7 +89,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
