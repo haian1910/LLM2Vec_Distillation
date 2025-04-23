@@ -30,7 +30,7 @@ GRAD_ACC=1
 EVAL_BATCH_SIZE=4
 EPOCH=3
 LORA_RANK=32
-LORA_ALPHA=8
+LORA_ALPHA=16
 LORA_DROPOUT=0.1
 # length
 MAX_LENGTH=512
@@ -78,7 +78,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
