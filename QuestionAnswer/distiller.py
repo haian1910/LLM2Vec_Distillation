@@ -42,6 +42,18 @@ class MultipleChoiceModel(nn.Module):
         self.uses_token_type_ids = hasattr(base_model.config, "type_vocab_size") and base_model.config.type_vocab_size > 0
     def device(self):
         return next(self.parameters()).device
+    def get_input_embeddings(self):
+        """Return the input embeddings from the base model"""
+        if hasattr(self.base_model, "get_input_embeddings"):
+            return self.base_model.get_input_embeddings()
+        elif hasattr(self.base_model, "bert") and hasattr(self.base_model.bert, "embeddings"):
+            return self.base_model.bert.embeddings.word_embeddings  # BERT-specific
+        elif hasattr(self.base_model, "model") and hasattr(self.base_model.model, "embed_tokens"):
+            return self.base_model.model.embed_tokens  # LLaMA-like
+        elif hasattr(self.base_model, "transformer") and hasattr(self.base_model.transformer, "wte"):
+            return self.base_model.transformer.wte  # GPT-like
+        else:
+            raise NotImplementedError("Unsupported model architecture for embedding extraction")
     def forward(self, input_ids=None, attention_mask=None, position_ids=None, token_type_ids=None, labels=None, **kwargs):
         batch_size = input_ids.size(0) if input_ids is not None else attention_mask.size(0)
         num_choices = input_ids.size(1) if input_ids is not None else attention_mask.size(1)
