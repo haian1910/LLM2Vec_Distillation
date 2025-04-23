@@ -21,7 +21,7 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/ai2_arc/"
+DATA_DIR="${BASE_PATH}/data/qasc/"
 NUM_LABELS=8
 # task
 TASK="rmse"
