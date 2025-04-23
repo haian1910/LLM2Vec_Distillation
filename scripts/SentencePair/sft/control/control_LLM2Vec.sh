@@ -79,7 +79,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
