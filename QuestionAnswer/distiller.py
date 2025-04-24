@@ -96,11 +96,12 @@ class MultipleChoiceModel(nn.Module):
         )
 
         # Get the appropriate representation based on model architecture
-        if hasattr(outputs, "pooler_output"):
-            pooled_output = outputs.pooler_output
-        else:
-            # Use the [CLS] token representation (first token)
-            pooled_output = outputs.last_hidden_state[:, 0]
+        # if hasattr(outputs, "pooler_output"):
+        #     pooled_output = outputs.pooler_output
+        # else:
+        #     # Use the [CLS] token representation (first token)
+        #     pooled_output = outputs.last_hidden_state[:, 0]
+        pooled_output = outputs.last_hidden_state[:, 0]
 
         # Apply the classifier to get logits for each choice
         logits = self.classifier(pooled_output)
