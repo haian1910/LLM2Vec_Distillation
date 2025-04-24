@@ -186,8 +186,8 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
                         os.path.join(save_dir_path, "projector.pt")
                     )
                 
-                model_list.append({"path": save_dir_path, "score": eval_loss}) #store model list in term of eval_loss
-                model_list = sorted(model_list, key=lambda x: x["score"], reverse=True)
+                model_list.append({"path": save_dir_path, "score": eval_accu}) #store model list in term of eval_loss
+                model_list = sorted(model_list, key=lambda x: x["score"], reverse=False)
                 
                 if len(model_list) > args.keep_best_n_checkpoints:
                     removed_model = model_list.pop(0)
