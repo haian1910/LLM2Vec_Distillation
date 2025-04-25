@@ -21,8 +21,8 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/ai2_arc/"
-NUM_LABELS=8
+DATA_DIR="${BASE_PATH}/data/openbookqa/"
+NUM_LABELS=4
 # task
 TASK="uld"
 # hp
@@ -34,7 +34,7 @@ EPOCH=3
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
-MAX_LENGTH=512
+MAX_LENGTH=128
 
 # runtime
 PRECISION="bf16"
