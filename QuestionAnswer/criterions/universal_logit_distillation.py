@@ -31,6 +31,7 @@ class UniversalLogitDistillation(CrossEntropyLoss):
         loss = self.compute_cross_entropy_loss(
             outputs.logits, output_data["labels"]
         )[0]
+        print("loss_ce": loss)
 
         # Teacher forward pass (no gradient)
         with torch.no_grad():
