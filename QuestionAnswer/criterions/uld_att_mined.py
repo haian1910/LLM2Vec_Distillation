@@ -214,7 +214,7 @@ class ULD_ATT_MINED(CrossEntropyLoss):
             outputs, teacher_outputs, output_data, distiller, log
         )
 
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (kd_loss + att_loss_total) # Hàm loss cuối cùng
+        loss = (1.0 - self.kd_rate) *0.5* loss_ce + self.kd_rate * (kd_loss + att_loss_total) # Hàm loss cuối cùng
         log["loss"] = loss
 
         accuracy = self.compute_accuracy(
