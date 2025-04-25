@@ -21,8 +21,8 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
-DATA_DIR="${BASE_PATH}/data/ai2_arc/"
-NUM_LABELS=8
+DATA_DIR="${BASE_PATH}/data/openbookqa/"
+NUM_LABELS=4
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
@@ -89,7 +89,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
