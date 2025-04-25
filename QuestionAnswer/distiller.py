@@ -19,9 +19,7 @@ from huggingface_hub import login
 
 import os
 
-#login(token="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")
-token = os.getenv("HF_TOKEN")
-login(token=token)
+login(token="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")
 
 class MultipleChoiceModel(nn.Module):
     """Wrapper for multiple choice tasks using a base model"""
@@ -399,123 +397,58 @@ class Distiller(nn.Module):
         if not os.path.exists(self.args.teacher_model_path):
             raise ValueError(f"Teacher model path does not exist: {self.args.teacher_model_path}")
 
-        # Check if this is a saved MultipleChoiceModel checkpoint
-        multiple_choice_config_path = os.path.join(self.args.teacher_model_path, "multiple_choice_config.json")
-        classifier_path = os.path.join(self.args.teacher_model_path, "classifier.pt")
         model_files = os.listdir(self.args.teacher_model_path)
-
         log_rank(f"Found files in teacher model directory: {model_files}")
 
-        try:
-            # Load the config to get hidden size
-            config = AutoConfig.from_pretrained(self.args.teacher_model_path, trust_remote_code=True)
-            if hasattr(config, "n_embed"):
-                self.teacher_hidden_size = config.n_embed
-            else:
-                self.teacher_hidden_size = config.hidden_size
+        # normal loading
+        config = AutoConfig.from_pretrained(
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            trust_remote_code=True
+        )
+        config.is_model_parallel = False
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
 
-            # Load the tokenizer
-            tokenizer = self.load_tokenizer(self.args.teacher_model_path)
+        if hasattr(config, "n_embed"):
+            self.teacher_hidden_size = config.n_embed
+        else:
+            self.teacher_hidden_size = config.hidden_size
 
-            # Check if adapter_config.json exists, suggesting it's a PEFT model
-            if "adapter_config.json" in model_files and "adapter_model.bin" in model_files:
-                log_rank("Found adapter files, loading as PEFT model")
-                # Load the base model first
-                base_model_name = "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp"
-                base_model = AutoModel.from_pretrained(
-                    base_model_name,
-                    config=AutoConfig.from_pretrained(base_model_name, trust_remote_code=True),
-                    device_map=None,
-                    torch_dtype=self.dtype,
-                    trust_remote_code=True,
-                )
+        base_model = AutoModel.from_pretrained(
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            config=config,
+            device_map=None,
+            torch_dtype=self.dtype,
+            trust_remote_code=True,
+        )
 
-                if hasattr(base_model.config, "pad_token_id"):
-                    base_model.config.pad_token_id = 2
+        if hasattr(base_model.config, "pad_token_id"):
+            base_model.config.pad_token_id = 2
 
-                # Load the adapter onto the base model
-                teacher_base_model = PeftModel.from_pretrained(
-                    base_model,
-                    self.args.teacher_model_path,
-                    is_trainable=False
-                )
-            else:
-                # Try to load the base model directly
-                log_rank("Loading base model directly (no adapters)")
-                teacher_base_model = AutoModel.from_pretrained(
-                    self.args.teacher_model_path,
-                    config=config,
-                    device_map=None,
-                    torch_dtype=self.dtype,
-                    trust_remote_code=True,
-                )
+        teacher_base_model = PeftModel.from_pretrained(
+            base_model,
+            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+        )    
 
-            # Create MultipleChoiceModel
-            if os.path.exists(multiple_choice_config_path):
-                with open(multiple_choice_config_path, "r") as f:
-                    mc_config = json.load(f)
-                num_choices = mc_config.get("num_choices", self.args.num_choices)
-                log_rank(f"Creating MultipleChoiceModel with {num_choices} choices")
-            else:
-                num_choices = self.args.num_choices
-                log_rank(f"No multiple_choice_config.json found, using default {num_choices} choices")
+        teacher_base_model = teacher_base_model.merge_and_unload()
 
-            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=num_choices)
+        teacher_base_model = PeftModel.from_pretrained(
+            teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
+        )
+        teacher_base_model = teacher_base_model.merge_and_unload()
 
-            # Load classifier if available
-            if os.path.exists(classifier_path):
-                log_rank("Loading classifier weights")
-                classifier_state_dict = torch.load(classifier_path, map_location="cpu")
-                teacher_model.classifier.load_state_dict(classifier_state_dict)
-            else:
-                log_rank("No classifier.pt found, using initialized classifier")
+        teacher_base_model = PeftModel.from_pretrained(
+            teacher_base_model,
+            self.args.teacher_model_path,
+        )
 
-        except Exception as e:
-            log_rank(f"Error loading teacher model: {str(e)}")
-            log_rank("Falling back to standard loading procedure...")
-
-            # Standard loading procedure
-            config = AutoConfig.from_pretrained(
-                "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-                trust_remote_code=True
-            )
-            config.is_model_parallel = False
-            tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
-
-            if hasattr(config, "n_embed"):
-                self.teacher_hidden_size = config.n_embed
-            else:
-                self.teacher_hidden_size = config.hidden_size
-
-            base_model = AutoModel.from_pretrained(
-                "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-                config=config,
-                device_map=None,
-                torch_dtype=self.dtype,
-                trust_remote_code=True,
-            )
-
-            if hasattr(base_model.config, "pad_token_id"):
-                base_model.config.pad_token_id = 2
-
-            teacher_base_model = PeftModel.from_pretrained(
-                base_model,
-                "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-            )    
-
-            teacher_base_model = teacher_base_model.merge_and_unload()
-
-            teacher_base_model = PeftModel.from_pretrained(
-                teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
-            )
-            teacher_base_model = teacher_base_model.merge_and_unload()
-
-            teacher_base_model = PeftModel.from_pretrained(
-                teacher_base_model,
-                self.args.teacher_model_path,
-            )
-
-            teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
+        teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
+        # Load classifier if available
+        if os.path.exists("classifier.pt"):
+            log_rank("Loading classifier weights")
+            classifier_state_dict = torch.load("classifier.pt", map_location="cpu")
+            teacher_model.classifier.load_state_dict(classifier_state_dict)
+        else:
+            log_rank("No classifier.pt found, using initialized classifier")
 
         # Freeze the teacher model parameters
         for param in teacher_model.parameters():
