@@ -19,8 +19,8 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/ai2_arc/"
-NUM_LABELS=8
+DATA_DIR="${BASE_PATH}/data/openbookqa/"
+NUM_LABELS=4
 # task
 TASK="sft"
 # hp
@@ -33,7 +33,7 @@ LORA_RANK=32
 LORA_ALPHA=8
 LORA_DROPOUT=0.1
 # length
-MAX_LENGTH=512
+MAX_LENGTH=128
 # runtime
 PRECISION="bf16"
 CRITERION="cross_entropy"
@@ -78,7 +78,7 @@ OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-valid"
+OPTS+=" --do-eval"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
