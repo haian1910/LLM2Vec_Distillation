@@ -398,7 +398,7 @@ class Distiller(nn.Module):
 
         if not os.path.exists(self.args.teacher_model_path):
             raise ValueError(f"Teacher model path does not exist: {self.args.teacher_model_path}")
-
+        classifier_path = os.path.join(self.args.teacher_model_path, "classifier.pt")
         model_files = os.listdir(self.args.teacher_model_path)
         log_rank(f"Found files in teacher model directory: {model_files}")
 
@@ -445,9 +445,9 @@ class Distiller(nn.Module):
 
         teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
         # Load classifier if available
-        if os.path.exists("classifier.pt"):
+        if os.path.exists(classifier_path):
             log_rank("Loading classifier weights")
-            classifier_state_dict = torch.load("classifier.pt", map_location="cpu")
+            classifier_state_dict = torch.load(classifier_path, map_location="cpu")
             teacher_model.classifier.load_state_dict(classifier_state_dict)
         else:
             log_rank("No classifier.pt found, using initialized classifier")
