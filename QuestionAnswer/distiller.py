@@ -461,10 +461,10 @@ class Distiller(nn.Module):
             peft_model.load_state_dict(remapped_state_dict, strict=False)
             
             return peft_model
-
+        checkpoint_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
         teacher_base_model = load_peft_model_with_remapped_keys(
             teacher_base_model,
-            self.args.teacher_model_path
+            checkpoint_path
         )
 
         teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
