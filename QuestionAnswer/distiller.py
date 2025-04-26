@@ -438,9 +438,33 @@ class Distiller(nn.Module):
         )
         teacher_base_model = teacher_base_model.merge_and_unload()
 
-        teacher_base_model = PeftModel.from_pretrained(
+        def load_peft_model_with_remapped_keys(base_model, checkpoint_path):
+            # Load the checkpoint
+            checkpoint = torch.load(checkpoint_path, map_location="cpu")
+            
+            # Remap keys to fix nesting and naming issues
+            remapped_state_dict = {}
+            for key, value in checkpoint.items():
+                # Fix excessive nesting (e.g., base_model.model.base_model.model.model -> base_model.model)
+                new_key = key.replace("base_model.model.base_model.model.model", "base_model.model")
+                
+                # Fix LoRA weight naming (e.g., lora_A.weight -> lora_A.default.weight)
+                new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
+                new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
+                
+                remapped_state_dict[new_key] = value
+            
+            # Initialize PEFT model
+            peft_model = PeftModel(base_model, is_trainable=False)  # Assuming inference; set is_trainable=True for training
+            
+            # Load remapped state dictionary
+            peft_model.load_state_dict(remapped_state_dict, strict=False)
+            
+            return peft_model
+
+        teacher_base_model = load_peft_model_with_remapped_keys(
             teacher_base_model,
-            self.args.teacher_model_path,
+            self.args.teacher_model_path
         )
 
         teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
