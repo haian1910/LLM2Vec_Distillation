@@ -48,7 +48,7 @@ class UniversalLogitDistillation(CrossEntropyLoss):
         )
         print("uld_loss:", kd_loss)
         # Combine losses
-        loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
+        loss = (1.0 - self.kd_rate) *0.1* loss + self.kd_rate * kd_loss
         log["loss"] = loss
 
         # Compute accuracy
