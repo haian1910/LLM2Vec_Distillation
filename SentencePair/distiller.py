@@ -254,6 +254,32 @@ class Distiller(nn.Module):
             teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
         # teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
+        def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
+
+            config_path = os.path.join(teacher_model_path, "adapter_config.json")
+            if os.path.exists(config_path):
+                from peft import PeftConfig
+                peft_config = PeftConfig.from_pretrained(teacher_model_path)
+                peft_model = PeftModel(base_model, peft_config)
+            else:
+                # If no config file, you'll need to manually create one as in the previous solution
+                raise ValueError("No adapter_config.json found and direct loading failed")
+            adap_path = os.path.join(teacher_model_path, "adapter_model.bin")
+            # Remap keys to fix nesting and naming issues
+            remapped_state_dict = {}
+            checkpoint = torch.load(adap_path)
+
+            for key, value in checkpoint.items():
+                new_key = key.replace("base_model.model.base_model.model", "base_model.model")
+                new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
+                new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
+                remapped_state_dict[new_key] = value
+            print(remapped_state_dict)
+            
+            # Load remapped state dictionary
+            peft_model.load_state_dict(remapped_state_dict, strict=False)
+            print("LoRA loaded")
+            return peft_model
         teacher_model = PeftModel.from_pretrained(
             teacher_model,
             self.args.teacher_model_path,
