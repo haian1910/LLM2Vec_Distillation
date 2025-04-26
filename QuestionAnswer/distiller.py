@@ -437,15 +437,10 @@ class Distiller(nn.Module):
         teacher_base_model = PeftModel.from_pretrained(
             teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
-        teacher_base_model = teacher_base_model.merge_and_unload()
+        # teacher_base_model = teacher_base_model.merge_and_unload()
 
         def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
-            print("Failed to load PEFT model directly")
-            
-            # If the above fails, try the manual approach with remapping
-            #checkpoint = torch.load(teacher_model_path, map_location="cpu")
-            
-            # Try to load config first
+
             config_path = os.path.join(teacher_model_path, "adapter_config.json")
             if os.path.exists(config_path):
                 from peft import PeftConfig
@@ -468,7 +463,7 @@ class Distiller(nn.Module):
             
             # Load remapped state dictionary
             peft_model.load_state_dict(remapped_state_dict, strict=False)
-            
+            print("LoRA loaded")
             return peft_model
 
         teacher_base_model = load_peft_model_with_remapped_keys(
