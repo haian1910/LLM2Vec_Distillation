@@ -474,7 +474,7 @@ class Distiller(nn.Module):
                 return peft_model
         teacher_base_model = load_peft_model_with_remapped_keys(
             teacher_base_model,
-            teacher_model_path
+            self.args.teacher_model_path
         )
 
         teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
