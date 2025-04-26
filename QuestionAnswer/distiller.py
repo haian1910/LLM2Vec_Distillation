@@ -436,7 +436,7 @@ class Distiller(nn.Module):
         teacher_base_model = PeftModel.from_pretrained(
             teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
-        teacher_base_model = teacher_base_model.merge_and_unload()
+        # teacher_base_model = teacher_base_model.merge_and_unload()
 
         def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
             # Try to load the PEFT model with config from the directory
