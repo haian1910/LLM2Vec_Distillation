@@ -438,33 +438,43 @@ class Distiller(nn.Module):
         )
         teacher_base_model = teacher_base_model.merge_and_unload()
 
-        def load_peft_model_with_remapped_keys(base_model, checkpoint_path):
-            # Load the checkpoint
-            checkpoint = torch.load(checkpoint_path, map_location="cpu")
-            
-            # Remap keys to fix nesting and naming issues
-            remapped_state_dict = {}
-            for key, value in checkpoint.items():
-                # Fix excessive nesting (e.g., base_model.model.base_model.model.model -> base_model.model)
-                new_key = key.replace("base_model.model.base_model.model.model", "base_model.model")
+        def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
+            # Try to load the PEFT model with config from the directory
+            try:
+                # This will automatically load the config.json and model weights
+                peft_model = PeftModel.from_pretrained(base_model, teacher_model_path)
+                return peft_model
+            except Exception as e:
+                print(f"Failed to load PEFT model directly: {e}")
                 
-                # Fix LoRA weight naming (e.g., lora_A.weight -> lora_A.default.weight)
-                new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
-                new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
+                # If the above fails, try the manual approach with remapping
+                checkpoint = torch.load(teacher_model_path, map_location="cpu")
                 
-                remapped_state_dict[new_key] = value
-            
-            # Initialize PEFT model
-            peft_model = PeftModel(base_model, is_trainable=False)  # Assuming inference; set is_trainable=True for training
-            
-            # Load remapped state dictionary
-            peft_model.load_state_dict(remapped_state_dict, strict=False)
-            
-            return peft_model
-        checkpoint_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
+                # Try to load config first
+                config_path = os.path.join(teacher_model_path, "adapter_config.json")
+                if os.path.exists(config_path):
+                    from peft import PeftConfig
+                    peft_config = PeftConfig.from_pretrained(teacher_model_path)
+                    peft_model = PeftModel(base_model, peft_config)
+                else:
+                    # If no config file, you'll need to manually create one as in the previous solution
+                    raise ValueError("No adapter_config.json found and direct loading failed")
+                
+                # Remap keys to fix nesting and naming issues
+                remapped_state_dict = {}
+                for key, value in checkpoint.items():
+                    new_key = key.replace("base_model.model.base_model.model.model", "base_model.model")
+                    new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
+                    new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
+                    remapped_state_dict[new_key] = value
+                
+                # Load remapped state dictionary
+                peft_model.load_state_dict(remapped_state_dict, strict=False)
+                
+                return peft_model
         teacher_base_model = load_peft_model_with_remapped_keys(
             teacher_base_model,
-            checkpoint_path
+            teacher_model_path
         )
 
         teacher_model = MultipleChoiceModel(teacher_base_model, num_choices=self.args.num_choices)
