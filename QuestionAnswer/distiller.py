@@ -20,8 +20,7 @@ from huggingface_hub import login
 import os
 
 #login(token="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")
-token = os.getenv("HF_TOKEN")
-login(token=token)
+
 
 class MultipleChoiceModel(nn.Module):
     """Wrapper for multiple choice tasks using a base model"""
@@ -299,11 +298,11 @@ class Distiller(nn.Module):
         if self.args.peft is not None: # for LLM2Vec
             if self.args.peft == "lora":
                 # Load the base model configuration
-                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp", trust_remote_code=True)
+                config = AutoConfig.from_pretrained("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp", trust_remote_code=True)
                 config.is_model_parallel = False
 
                 # Get tokenizer
-                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+                tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
 
                 if hasattr(config, "n_embed"):
                     self.hidden_size = config.n_embed
@@ -312,7 +311,7 @@ class Distiller(nn.Module):
 
                 # Load the base model using AutoModel instead of AutoModelForSequenceClassification
                 base_model = AutoModel.from_pretrained(
-                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
                     config=config,
                     device_map=None,
                     torch_dtype=self.dtype,
@@ -325,12 +324,12 @@ class Distiller(nn.Module):
                 # Apply PEFT
                 base_model = PeftModel.from_pretrained(
                     base_model,
-                    "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+                    "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
                 )
                 base_model = base_model.merge_and_unload()  # This can take several minutes on cpu
 
                 base_model = PeftModel.from_pretrained(
-                    base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp"
+                    base_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp"
                 )
 
                 # Wrap the base model with our multiple choice model
@@ -404,11 +403,11 @@ class Distiller(nn.Module):
 
         # normal loading
         config = AutoConfig.from_pretrained(
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             trust_remote_code=True
         )
         config.is_model_parallel = False
-        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp")
 
         if hasattr(config, "n_embed"):
             self.teacher_hidden_size = config.n_embed
@@ -416,7 +415,7 @@ class Distiller(nn.Module):
             self.teacher_hidden_size = config.hidden_size
 
         base_model = AutoModel.from_pretrained(
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
             config=config,
             device_map=None,
             torch_dtype=self.dtype,
@@ -428,27 +427,21 @@ class Distiller(nn.Module):
 
         teacher_base_model = PeftModel.from_pretrained(
             base_model,
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+            "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp",
         )    
 
         teacher_base_model = teacher_base_model.merge_and_unload()
 
         teacher_base_model = PeftModel.from_pretrained(
-            teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
+            teacher_base_model, "McGill-NLP/LLM2Vec-Sheared-LLaMA-mntp-unsup-simcse"
         )
-        # teacher_base_model = teacher_base_model.merge_and_unload()
+        teacher_base_model = teacher_base_model.merge_and_unload()
 
         def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
-            # # Try to load the PEFT model with config from the directory
-            # try:
-            #     # This will automatically load the config.json and model weights
-            #     peft_model = PeftModel.from_pretrained(base_model, teacher_model_path)
-            #     return peft_model
-            # except Exception as e:
-            print(f"Failed to load PEFT model directly: {e}")
+            print("Failed to load PEFT model directly")
             
             # If the above fails, try the manual approach with remapping
-            checkpoint = torch.load(teacher_model_path, map_location="cpu")
+            #checkpoint = torch.load(teacher_model_path, map_location="cpu")
             
             # Try to load config first
             config_path = os.path.join(teacher_model_path, "adapter_config.json")
@@ -459,19 +452,23 @@ class Distiller(nn.Module):
             else:
                 # If no config file, you'll need to manually create one as in the previous solution
                 raise ValueError("No adapter_config.json found and direct loading failed")
-            
+            adap_path = os.path.join(teacher_model_path, "adapter_model.bin")
             # Remap keys to fix nesting and naming issues
             remapped_state_dict = {}
+            checkpoint = torch.load(adap_path)
+
             for key, value in checkpoint.items():
-                new_key = key.replace("base_model.model.base_model.model.model", "base_model.model")
+                new_key = key.replace("base_model.model.base_model.model", "base_model.model")
                 new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
                 new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
                 remapped_state_dict[new_key] = value
+            print(remapped_state_dict)
             
             # Load remapped state dictionary
             peft_model.load_state_dict(remapped_state_dict, strict=False)
             
             return peft_model
+
         teacher_base_model = load_peft_model_with_remapped_keys(
             teacher_base_model,
             self.args.teacher_model_path
