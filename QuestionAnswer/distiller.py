@@ -459,7 +459,7 @@ class Distiller(nn.Module):
                 new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
                 new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
                 remapped_state_dict[new_key] = value
-            print(remapped_state_dict)
+            
             
             # Load remapped state dictionary
             peft_model.load_state_dict(remapped_state_dict, strict=False)
