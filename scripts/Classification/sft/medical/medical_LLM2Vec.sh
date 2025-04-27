@@ -20,7 +20,7 @@ CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
 DATA_DIR="${BASE_PATH}/data/medical/"
-NUM_LABELS=9
+NUM_LABELS=5
 # task
 TASK="sft"
 # hp
