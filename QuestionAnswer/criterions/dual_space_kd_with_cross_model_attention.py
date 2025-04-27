@@ -30,6 +30,7 @@ class DualSpaceKDWithCMA(VariousDivergence):
         
         # Cross-entropy loss with ground-truth labels
         loss = self.compute_cross_entropy_loss(logits, output_data["labels"])[0]
+        print('loss_ce:', loss)
         
         # Forward pass through teacher model (with no gradient tracking)
         with torch.no_grad():
@@ -44,6 +45,8 @@ class DualSpaceKDWithCMA(VariousDivergence):
         kd_loss, log = self.compute_dual_space_kd_loss_with_cma(
             outputs, teacher_outputs, input_data, output_data, distiller, log
         )
+        print('dskd_loss:', kd_loss)
+        
         
         # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
