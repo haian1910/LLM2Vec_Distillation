@@ -21,8 +21,8 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="link checkpoint"
 # data
-DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/Classification/patent"
-NUM_LABELS=9
+DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/Classification/medical"
+NUM_LABELS=5
 # task
 TASK="rmse_cka"
 # hp
