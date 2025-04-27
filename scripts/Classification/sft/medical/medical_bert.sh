@@ -19,16 +19,16 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/patent/"
-NUM_LABELS=9
+DATA_DIR="${BASE_PATH}/data/medical/"
+NUM_LABELS=5
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=16
+BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=32
-EPOCH=2
+EVAL_BATCH_SIZE=4
+EPOCH=3
 # length
 MAX_LENGTH=512
 # runtime
