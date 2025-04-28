@@ -24,7 +24,7 @@ criterion_list = {
     "dskd_cma_att_mined": DSKD_CMA_ATT_MINED,
     "dskd_cma_att_mined_cka": DSKD_CMA_ATT_MINED_CKA,
     "rmse_cka": RMSE_CKA,
-    "rmse": RMSE
+    "rmse": RMSE,
     "ot": OT
 }
 
