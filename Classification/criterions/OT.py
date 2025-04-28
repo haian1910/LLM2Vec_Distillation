@@ -4,7 +4,7 @@ import math
 import editdistance
 from .cross_entropy_loss import CrossEntropyLoss
 
-class OTLoss(CrossEntropyLoss):
+class OT(CrossEntropyLoss):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
