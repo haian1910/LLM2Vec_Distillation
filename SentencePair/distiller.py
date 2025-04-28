@@ -280,7 +280,7 @@ class Distiller(nn.Module):
             peft_model.load_state_dict(remapped_state_dict, strict=False)
             print("LoRA loaded")
             return peft_model
-        teacher_model = PeftModel.from_pretrained(
+        teacher_model = load_peft_model_with_remapped_keys(
             teacher_model,
             self.args.teacher_model_path,
         )
