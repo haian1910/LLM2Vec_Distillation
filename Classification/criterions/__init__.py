@@ -10,6 +10,7 @@ from .dskd_cma_att_mined import DSKD_CMA_ATT_MINED
 from .dskd_cma_att_mined_cka import DSKD_CMA_ATT_MINED_CKA
 from .rmse_cka import RMSE_CKA
 from .rmse import RMSE
+from .ot import OT
 
 criterion_list = {
     "cross_entropy": CrossEntropyLoss,
@@ -24,6 +25,7 @@ criterion_list = {
     "dskd_cma_att_mined_cka": DSKD_CMA_ATT_MINED_CKA,
     "rmse_cka": RMSE_CKA,
     "rmse": RMSE
+    "ot": OT
 }
 
 def build_criterion(args):
