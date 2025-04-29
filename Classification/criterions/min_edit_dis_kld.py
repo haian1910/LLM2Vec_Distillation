@@ -9,10 +9,7 @@ from typing import Dict, List
 from .various_divergence import VariousDivergence
 
 
-TOKENIZER_TO_SPECIAL_TOKEN = {
-            type(tokenizer_teacher): "<s>",  # Token đặc biệt của teacher
-            type(tokenizer_student): "[CLS]"   # Token đặc biệt của student
-        }
+
 
 class MinEditDisForwardKLD(VariousDivergence):
     def __init__(self, args, padding_id=-100) -> None:
@@ -57,6 +54,12 @@ class MinEditDisForwardKLD(VariousDivergence):
             output_data,
             distiller
         )
+        tokenizer_student = distiller.student_tokenizer
+        tokenizer_teacher = distiller.teacher_tokenizers        
+        TOKENIZER_TO_SPECIAL_TOKEN = {
+            type(tokenizer_teacher): "<s>",  # Token đặc biệt của teacher
+            type(tokenizer_student): "[CLS]"   # Token đặc biệt của student
+        }
         
         kd_loss = self.compute_forward_kl_divergence(
             logits, 
