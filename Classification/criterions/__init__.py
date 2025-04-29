@@ -3,7 +3,7 @@ from .various_divergence import VariousDivergence
 from .dual_space_kd import DualSpaceKD
 from .dual_space_kd_with_cross_model_attention import DualSpaceKDWithCMA
 from .universal_logit_distillation import UniversalLogitDistillation
-# from .min_edit_dis_kld import MinEditDisForwardKLD
+from .min_edit_dis_kld import MinEditDisForwardKLD
 from .uld_att_mined import ULD_ATT_MINED
 from .uld_att_mined_cka import ULD_ATT_MINED_CKA
 from .dskd_cma_att_mined import DSKD_CMA_ATT_MINED
@@ -25,7 +25,8 @@ criterion_list = {
     "dskd_cma_att_mined_cka": DSKD_CMA_ATT_MINED_CKA,
     "rmse_cka": RMSE_CKA,
     "rmse": RMSE,
-    "ot": OT
+    "ot": OT,
+    "min_edit_dis_kld": MinEditDisForwardKLD
 }
 
 def build_criterion(args):
