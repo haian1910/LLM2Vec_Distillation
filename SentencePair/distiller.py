@@ -254,36 +254,36 @@ class Distiller(nn.Module):
             teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
         # teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
-        def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
 
-            config_path = os.path.join(teacher_model_path, "adapter_config.json")
-            if os.path.exists(config_path):
-                from peft import PeftConfig
-                peft_config = PeftConfig.from_pretrained(teacher_model_path)
-                peft_model = PeftModel(base_model, peft_config)
-            else:
-                # If no config file, you'll need to manually create one as in the previous solution
-                raise ValueError("No adapter_config.json found and direct loading failed")
-            adap_path = os.path.join(teacher_model_path, "adapter_model.bin")
-            # Remap keys to fix nesting and naming issues
-            remapped_state_dict = {}
-            checkpoint = torch.load(adap_path)
-
-            for key, value in checkpoint.items():
-                new_key = key.replace("base_model.model.base_model.model", "base_model.model")
-                new_key = new_key.replace("lora_A.weight", "lora_A.default.weight")
-                new_key = new_key.replace("lora_B.weight", "lora_B.default.weight")
-                remapped_state_dict[new_key] = value
-            print(remapped_state_dict)
+        if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
             
-            # Load remapped state dictionary
-            peft_model.load_state_dict(remapped_state_dict, strict=False)
-            print("LoRA loaded")
-            return peft_model
-        teacher_model = load_peft_model_with_remapped_keys(
-            teacher_model,
-            self.args.teacher_model_path,
-        )
+            # Path to the adapter model weights
+            adapter_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
+            
+            # Load the checkpoint and fix the keys
+            checkpoint = torch.load(adapter_path, map_location="cpu")
+            fixed_checkpoint = {}
+            
+            for key, value in checkpoint.items():
+                # Fix the key if needed
+                new_key = key
+                if "lora_A.weight" in key and "default" not in key:
+                    new_key = key.replace("lora_A.weight", "lora_A.default.weight")
+                if "lora_B.weight" in key and "default" not in key:
+                    new_key = key.replace("lora_B.weight", "lora_B.default.weight")
+                if "base_model.model.base_model.model" in key:
+                    new_key = key.replace("base_model.model.base_model.model", "base_model.model")
+                    
+                fixed_checkpoint[new_key] = value
+            
+            # Save the fixed checkpoint back to the original file
+            torch.save(fixed_checkpoint, adapter_path)
+            
+            # Load the model with fixed weights
+            teacher_model = PeftModel.from_pretrained(
+                teacher_model,
+                self.args.teacher_model_path
+            )
       
         for param in teacher_model.parameters():
             param.requires_grad = False
