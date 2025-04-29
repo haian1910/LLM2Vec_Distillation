@@ -82,7 +82,7 @@ class MinEditDisForwardKLD(VariousDivergence):
     def get_aligned_teacher_logits(
         self, logits, teacher_logits, input_data, output_data, distiller,
     ):
-        target = output_data["label"]
+        target = output_data["labels"]
         pad_mask = target.ne(self.padding_id)
         teacher_target = output_data[f"teacher_{distiller.teacher_model_type}_label"]
         target_ids = torch.where(
