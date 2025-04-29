@@ -10,14 +10,9 @@ from .various_divergence import VariousDivergence
 
 
 TOKENIZER_TO_SPECIAL_TOKEN = {
-    transformers.LlamaTokenizer: "▁",
-    transformers.LlamaTokenizerFast: "▁",
-    transformers.GPTNeoXTokenizerFast: "Ġ",
-    transformers.GPT2Tokenizer: "Ġ",
-    transformers.GPT2TokenizerFast: "Ġ",
-    transformers.Qwen2Tokenizer: "Ġ",
-    transformers.Qwen2TokenizerFast: "Ġ",
-}
+            type(tokenizer_teacher): "<s>",  # Token đặc biệt của teacher
+            type(tokenizer_student): "[CLS]"   # Token đặc biệt của student
+        }
 
 class MinEditDisForwardKLD(VariousDivergence):
     def __init__(self, args, padding_id=-100) -> None:
@@ -39,21 +34,20 @@ class MinEditDisForwardKLD(VariousDivergence):
         outputs = model(
             input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
-            position_ids=input_data.get("position_ids", None), 
             output_hidden_states=True
         )
+
         logits = outputs.logits
         log = {}
-        loss = self.compute_cross_entropy_loss(
-            outputs.logits, output_data["label"], log=log
-        )[0]
+        loss_ce = self.compute_cross_entropy_loss(
+            logits,
+            output_data["labels"])[0]
 
         with torch.no_grad():
             teacher_model.eval()
             teacher_outputs = teacher_model(
-                input_data[f"teacher_{distiller.teacher_model_type}_input_ids"],
-                attention_mask=input_data[f"teacher_{distiller.teacher_model_type}_attention_mask"],
-                position_ids=input_data.get(f"teacher_{distiller.teacher_model_type}_position_ids", None), 
+                input_data["teacher_input_ids"],
+                attention_mask=input_data["teacher_attention_mask"],
                 output_hidden_states=True)
             
         teacher_logits = self.get_aligned_teacher_logits(
@@ -67,7 +61,7 @@ class MinEditDisForwardKLD(VariousDivergence):
         kd_loss = self.compute_forward_kl_divergence(
             logits, 
             teacher_logits, 
-            output_data["label"],
+            output_data["labelsl"],
             log=log
         )
 
@@ -76,16 +70,14 @@ class MinEditDisForwardKLD(VariousDivergence):
 
         accuracy = self.compute_token_accuracy(
             logits, 
-            output_data["label"], 
+            output_data["labels"], 
         )
         log["accuracy"] = accuracy
 
         logging_output = self.record_logging_output(
-            logging_output, 
-            batch_denom,
-            log
+            logging_output, batch_denom, log
         )
-        return loss / batch_denom, logging_output
+        return loss , logging_output
 
     def get_aligned_teacher_logits(
         self, logits, teacher_logits, input_data, output_data, distiller,
