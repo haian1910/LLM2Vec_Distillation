@@ -403,9 +403,9 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
 
             return att_loss_total
         
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
+        #att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
         att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 3) 
-        print("rmse_loss:", att_loss_total_1)
+        #print("rmse_loss:", att_loss_total_1)
         print("cka_loss:", att_loss_total_2)
 
 
@@ -426,7 +426,7 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
         )
         print("ot_loss:", kd_loss)
         # Combine losses
-        loss = (1.0 - self.kd_rate) * loss + self.kd_rate *(att_loss_total_1 + 0.1*att_loss_total_2 + kd_loss)
+        loss = (1.0 - self.kd_rate) * loss + self.kd_rate *(0.1*att_loss_total_2 + kd_loss)
         log["loss"] = loss
 
         # Compute accuracy
