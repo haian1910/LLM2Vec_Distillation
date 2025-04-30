@@ -267,16 +267,14 @@ class Distiller(nn.Module):
             fixed_checkpoint = {}
             
             for key, value in checkpoint.items():
-                # Fix the key if needed
-                new_key = key
                 if "lora_A.weight" in key and "default" not in key:
-                    new_key = key.replace("lora_A.weight", "lora_A.default.weight")
+                    key = key.replace("lora_A.weight", "lora_A.default.weight")
                 if "lora_B.weight" in key and "default" not in key:
-                    new_key = key.replace("lora_B.weight", "lora_B.default.weight")
+                    key = key.replace("lora_B.weight", "lora_B.default.weight")
                 if "base_model.model.base_model.model" in key:
-                    new_key = key.replace("base_model.model.base_model.model", "base_model.model")
+                    key = key.replace("base_model.model.base_model.model", "base_model.model")
                     
-                fixed_checkpoint[new_key] = value
+                fixed_checkpoint[key] = value
             
             # Save the fixed checkpoint back to the original file
             torch.save(fixed_checkpoint, adapter_path)
