@@ -12,6 +12,7 @@ from .rmse_cka import RMSE_CKA
 from .rmse import RMSE
 from .ot import OT
 from .ot_rmse_cka import OT_RMSE_CKA
+from .new_ot import NEW_OT
 
 criterion_list = {
     "cross_entropy": CrossEntropyLoss,
@@ -28,7 +29,8 @@ criterion_list = {
     "rmse": RMSE,
     "ot": OT,
     "min_edit_dis_kld": MinEditDisForwardKLD,
-    "ot_rmse_cka": OT_RMSE_CKA
+    "ot_rmse_cka": OT_RMSE_CKA,
+    "new_ot": NEW_OT
 }
 
 def build_criterion(args):
