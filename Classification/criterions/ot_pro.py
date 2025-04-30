@@ -6,7 +6,7 @@ import editdistance
 from transformers import AutoTokenizer, AutoConfig, AutoModel
 import re
 
-class NEW_OT(CrossEntropyLoss):
+class OT_PRO(CrossEntropyLoss):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
