@@ -254,7 +254,7 @@ class Distiller(nn.Module):
         teacher_model = PeftModel.from_pretrained(
             teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
-        teacher_base_model = teacher_base_model.merge_and_unload()
+        teacher_model = teacher_model.merge_and_unload()
 
 
         if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
