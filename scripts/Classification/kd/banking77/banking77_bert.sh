@@ -19,8 +19,8 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/patent/"
-NUM_LABELS=9
+DATA_DIR="${BASE_PATH}/data/banking77/"
+NUM_LABELS=77
 # task
 TASK="sft"
 # hp
@@ -30,7 +30,7 @@ GRAD_ACC=1
 EVAL_BATCH_SIZE=32
 EPOCH=2
 # length
-MAX_LENGTH=512
+MAX_LENGTH=128
 # runtime
 PRECISION="bf16"
 CRITERION="cross_entropy"
