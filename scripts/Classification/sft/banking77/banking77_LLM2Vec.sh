@@ -19,8 +19,8 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/patent/"
-NUM_LABELS=9
+DATA_DIR="${BASE_PATH}/data/banking77/"
+NUM_LABELS=77
 # task
 TASK="sft"
 # hp
