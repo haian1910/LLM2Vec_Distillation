@@ -174,7 +174,7 @@ class Distiller(nn.Module):
                 model = PeftModel.from_pretrained(
                     model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
                 )
-
+                model = model.merge_and_unload() 
                 # Apply new LoRA adapter for fine-tuning
                 if self.args.do_train:
                     peft_config = LoraConfig(
@@ -189,6 +189,11 @@ class Distiller(nn.Module):
                         ]
                     )
                     # model = get_peft_model(model, peft_config)
+                    for param in model.parameters():
+                        param.requires_grad = False
+                    
+                    for param in model.classifier.parameters():
+                        param.requires_grad = True
                     model.print_trainable_parameters()
             else:
                 raise NotImplementedError
