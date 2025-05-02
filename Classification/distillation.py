@@ -175,8 +175,16 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
                 if not args.only_save_projector:
                     log_rank("Saving tokenizer...")
                     tokenizer.save_pretrained(save_dir_path)
-                    log_rank("Saving model...")
-                    model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                    # log_rank("Saving model...")
+                    # model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                    if hasattr(model.module.student_model, 'score'):  # Mistral model
+                        log_rank("Saving Mistral classifier head (score)...")
+                        torch.save(model.module.student_model.score.state_dict(), classifier_path)
+                    elif hasattr(model.module.student_model, 'classifier'):  # BERT model
+                        log_rank("Saving BERT classifier head (classifier)...")
+                        torch.save(model.module.student_model.classifier.state_dict(), classifier_path)
+                    else:
+                        log_rank("Warning: Could not identify classifier head structure, no classifier saved.")
                     log_rank("Saving config")
                     model.module.student_model.config.save_pretrained(save_dir_path)
                 if hasattr(model.module, "projectors"):
