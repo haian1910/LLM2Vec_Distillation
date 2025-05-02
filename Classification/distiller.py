@@ -192,9 +192,11 @@ class Distiller(nn.Module):
                     for param in model.parameters():
                         param.requires_grad = False
                     
-                    for param in model.classifier.parameters():
+                    for param in model.score.parameters():
                         param.requires_grad = True
-                    model.print_trainable_parameters()
+                    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                    all_params = sum(p.numel() for p in model.parameters())
+                    print(f"Trainable parameters: {trainable_params}/{all_params} ({trainable_params/all_params:.2%})")
             else:
                 raise NotImplementedError
         else: #for BERT
@@ -261,35 +263,40 @@ class Distiller(nn.Module):
         )
         teacher_model = teacher_model.merge_and_unload()
 
-
-        if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
+        # if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
             
-            # Path to the adapter model weights
-            adapter_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
+        #     # Path to the adapter model weights
+        #     adapter_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
             
-            # Load the checkpoint and fix the keys
-            checkpoint = torch.load(adapter_path, map_location="cpu")
-            fixed_checkpoint = {}
+        #     # Load the checkpoint and fix the keys
+        #     checkpoint = torch.load(adapter_path, map_location="cpu")
+        #     fixed_checkpoint = {}
             
-            for key, value in checkpoint.items():
-                if "lora_A.weight" in key and "default" not in key:
-                    key = key.replace("lora_A.weight", "lora_A.default.weight")
-                if "lora_B.weight" in key and "default" not in key:
-                    key = key.replace("lora_B.weight", "lora_B.default.weight")
-                if "base_model.model.base_model.model" in key:
-                    key = key.replace("base_model.model.base_model.model", "base_model.model")
+        #     for key, value in checkpoint.items():
+        #         if "lora_A.weight" in key and "default" not in key:
+        #             key = key.replace("lora_A.weight", "lora_A.default.weight")
+        #         if "lora_B.weight" in key and "default" not in key:
+        #             key = key.replace("lora_B.weight", "lora_B.default.weight")
+        #         if "base_model.model.base_model.model" in key:
+        #             key = key.replace("base_model.model.base_model.model", "base_model.model")
                     
-                fixed_checkpoint[key] = value
+        #         fixed_checkpoint[key] = value
             
-            # Save the fixed checkpoint back to the original file
-            torch.save(fixed_checkpoint, adapter_path)
+        #     # Save the fixed checkpoint back to the original file
+        #     torch.save(fixed_checkpoint, adapter_path)
             
-            # Load the model with fixed weights
-            teacher_model = PeftModel.from_pretrained(
-                teacher_model,
-                self.args.teacher_model_path
-            )
-      
+        #     # Load the model with fixed weights
+        #     teacher_model = PeftModel.from_pretrained(
+        #         teacher_model,
+        #         self.args.teacher_model_path
+        #     )
+        classifier_path = os.path.join(self.args.teacher_model_path, "classifier_head.bin")
+        if os.path.exists(classifier_path):
+            log_rank("Loading classifier head from trained model...")
+            classifier_state_dict = torch.load(classifier_path, map_location="cpu")
+            teacher_model.score.load_state_dict(classifier_state_dict)
+        else:
+            log_rank("No classifier head found in teacher model path. Using default classifier.")
         for param in teacher_model.parameters():
             param.requires_grad = False
         
