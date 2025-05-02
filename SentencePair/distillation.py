@@ -20,10 +20,10 @@ from transformers import (
     AutoModel,
 )
 from transformers.integrations import HfDeepSpeedConfig
-from SentencePair.arguments import get_args
-from SentencePair.distiller import Distiller
-from SentencePair.data_utils.distill_datasets import DistillDataset
-from SentencePair.utils import (
+from Classification.arguments import get_args
+from Classification.distiller import Distiller
+from Classification.data_utils.distill_datasets import DistillDataset
+from Classification.utils import (
     initialize,
     get_optimizer, 
     get_learning_rate_scheduler,
@@ -31,7 +31,7 @@ from SentencePair.utils import (
     log_rank,
     all_gather,
 )
-from SentencePair.criterions import build_criterion
+from Classification.criterions import build_criterion
 # from rouge_metric import compute_metrics
 
 torch.set_num_threads(4) # giới hạn số lượng thread torch sử dụng cho cpu
@@ -175,8 +175,16 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
                 if not args.only_save_projector:
                     log_rank("Saving tokenizer...")
                     tokenizer.save_pretrained(save_dir_path)
-                    log_rank("Saving model...")
-                    model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                    # log_rank("Saving model...")
+                    # model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                    if hasattr(model.module.student_model, 'score'):  # Mistral model
+                        log_rank("Saving Mistral classifier head (score)...")
+                        torch.save(model.module.student_model.score.state_dict(), classifier_path)
+                    elif hasattr(model.module.student_model, 'classifier'):  # BERT model
+                        log_rank("Saving BERT classifier head (classifier)...")
+                        torch.save(model.module.student_model.classifier.state_dict(), classifier_path)
+                    else:
+                        log_rank("Warning: Could not identify classifier head structure, no classifier saved.")
                     log_rank("Saving config")
                     model.module.student_model.config.save_pretrained(save_dir_path)
                 if hasattr(model.module, "projectors"):
