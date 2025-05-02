@@ -674,8 +674,8 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
             stu_mass = student_importance.view(-1, 1)  # Column vector
             
             # Ensure mass vectors match sequence lengths
-            tea_mass = tea_mass[:valid_teacher_seq.size(0)]
-            stu_mass = stu_mass[:valid_student_seq.size(0)]
+            # tea_mass = tea_mass[:valid_teacher_seq.size(0)]
+            # stu_mass = stu_mass[:valid_student_seq.size(0)]
             
             # Convert all tensors to the target dtype (float32) for computation safety
             valid_student_seq = valid_student_seq.to(torch.float32)
@@ -695,14 +695,16 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
             cost_matrix = cost_matrix.to(torch.float32)
             
             # Check dimensions
-            if tea_mass.size(0) != cost_matrix.size(1) or stu_mass.size(0) != cost_matrix.size(0):
-                # Reshape tea_mass and stu_mass to match cost_matrix
-                tea_mass = torch.ones(cost_matrix.size(1), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(1)
-                stu_mass = torch.ones(cost_matrix.size(0), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(0)
-            else:
-                # Convert existing mass vectors to float32
-                tea_mass = tea_mass.to(torch.float32)
-                stu_mass = stu_mass.to(torch.float32)
+            # if tea_mass.size(0) != cost_matrix.size(1) or stu_mass.size(0) != cost_matrix.size(0):
+            #     # Reshape tea_mass and stu_mass to match cost_matrix
+            #     tea_mass = torch.ones(cost_matrix.size(1), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(1)
+            #     stu_mass = torch.ones(cost_matrix.size(0), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(0)
+            # else:
+            #     # Convert existing mass vectors to float32
+            #     tea_mass = tea_mass.to(torch.float32)
+            #     stu_mass = stu_mass.to(torch.float32)
+            tea_mass = tea_mass.to(torch.float32)
+            stu_mass = stu_mass.to(torch.float32)
             
             # Compute OT plan and loss
             ot_loss, transport_plan = self.sinkhorn(cost_matrix, stu_mass, tea_mass)
