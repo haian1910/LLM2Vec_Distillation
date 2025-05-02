@@ -188,7 +188,7 @@ class Distiller(nn.Module):
                             "gate_proj", "up_proj", "down_proj"
                         ]
                     )
-                    model = get_peft_model(model, peft_config)
+                    # model = get_peft_model(model, peft_config)
                     model.print_trainable_parameters()
             else:
                 raise NotImplementedError
