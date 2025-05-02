@@ -15,12 +15,13 @@ from peft import (
     TaskType,
     get_peft_model
 )
-from SentencePair.utils import log_rank
+from utils import log_rank
 from huggingface_hub import login
 
 import os
-token = os.getenv("HF_TOKEN")
-login(token=token)
+#token = os.getenv("HF_TOKEN")
+#login(token=token)
+login(token="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")
 
 
 class Distiller(nn.Module):
@@ -173,7 +174,7 @@ class Distiller(nn.Module):
                 model = PeftModel.from_pretrained(
                     model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
                 )
-
+                model = model.merge_and_unload() 
                 # Apply new LoRA adapter for fine-tuning
                 if self.args.do_train:
                     peft_config = LoraConfig(
@@ -188,7 +189,14 @@ class Distiller(nn.Module):
                         ]
                     )
                     model = get_peft_model(model, peft_config)
-                    model.print_trainable_parameters()
+                    for param in model.parameters():
+                        param.requires_grad = False
+                    
+                    for param in model.score.parameters():
+                        param.requires_grad = True
+                    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                    all_params = sum(p.numel() for p in model.parameters())
+                    print(f"Trainable parameters: {trainable_params}/{all_params} ({trainable_params/all_params:.2%})")
             else:
                 raise NotImplementedError
         else: #for BERT
@@ -253,7 +261,7 @@ class Distiller(nn.Module):
         teacher_model = PeftModel.from_pretrained(
             teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
-        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
+        teacher_model = teacher_model.merge_and_unload()
 
         if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
             
@@ -265,7 +273,6 @@ class Distiller(nn.Module):
             fixed_checkpoint = {}
             
             for key, value in checkpoint.items():
-
                 if "lora_A.weight" in key and "default" not in key:
                     key = key.replace("lora_A.weight", "lora_A.default.weight")
                 if "lora_B.weight" in key and "default" not in key:
@@ -283,7 +290,13 @@ class Distiller(nn.Module):
                 teacher_model,
                 self.args.teacher_model_path
             )
-      
+        classifier_path = os.path.join(self.args.teacher_model_path, "classifier_head.bin")
+        if os.path.exists(classifier_path):
+            log_rank("Loading classifier head from trained model...")
+            classifier_state_dict = torch.load(classifier_path, map_location="cpu")
+            teacher_model.score.load_state_dict(classifier_state_dict)
+        else:
+            log_rank("No classifier head found in teacher model path. Using default classifier.")
         for param in teacher_model.parameters():
             param.requires_grad = False
         
