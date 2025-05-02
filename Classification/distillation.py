@@ -177,6 +177,7 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
                     tokenizer.save_pretrained(save_dir_path)
                     # log_rank("Saving model...")
                     # model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                    classifier_path = os.path.join(save_dir_path, "classifier_head.bin")
                     if hasattr(model.module.student_model, 'score'):  # Mistral model
                         log_rank("Saving Mistral classifier head (score)...")
                         torch.save(model.module.student_model.score.state_dict(), classifier_path)
