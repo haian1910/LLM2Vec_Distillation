@@ -190,7 +190,7 @@ class Distiller(nn.Module):
                     )
                     # model = get_peft_model(model, peft_config)
                     for param in model.parameters():
-                        param.requires_grad = False
+                        param.requires_grad = True
                     
                     for param in model.score.parameters():
                         param.requires_grad = True
@@ -227,41 +227,41 @@ class Distiller(nn.Module):
         return model, tokenizer
     
     def load_teacher_model(self):
-        log_rank("Loading teacher model...")
-        config = AutoConfig.from_pretrained(
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-            trust_remote_code=True
-        )
-        config.is_model_parallel = False
+        # log_rank("Loading teacher model...")
+        # config = AutoConfig.from_pretrained(
+        #     "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+        #     trust_remote_code=True
+        # )
+        # config.is_model_parallel = False
 
-        tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
+        # tokenizer = self.load_tokenizer("McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp")
 
-        if hasattr(config, "n_embed"):
-            self.teacher_hidden_size = config.n_embed
-        else:
-            self.teacher_hidden_size = config.hidden_size
+        # if hasattr(config, "n_embed"):
+        #     self.teacher_hidden_size = config.n_embed
+        # else:
+        #     self.teacher_hidden_size = config.hidden_size
 
-        config.num_labels = self.args.num_labels
-        model = AutoModelForSequenceClassification.from_pretrained(
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-            config=config,
-            device_map=None,
-            torch_dtype=self.dtype,
-            trust_remote_code=True,
-        )
-        model.config.pad_token_id = 2
-        teacher_model = PeftModel.from_pretrained(
-            model,
-            "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
-        )    
+        # config.num_labels = self.args.num_labels
+        # model = AutoModelForSequenceClassification.from_pretrained(
+        #     "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+        #     config=config,
+        #     device_map=None,
+        #     torch_dtype=self.dtype,
+        #     trust_remote_code=True,
+        # )
+        # model.config.pad_token_id = 2
+        # teacher_model = PeftModel.from_pretrained(
+        #     model,
+        #     "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp",
+        # )    
         
-        teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
+        # teacher_model = teacher_model.merge_and_unload()  # This can take several minutes on cpu
 
-        # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
-        teacher_model = PeftModel.from_pretrained(
-            teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
-        )
-        teacher_model = teacher_model.merge_and_unload()
+        # # Loading unsupervised SimCSE model. This loads the trained LoRA weights on top of MNTP model. Hence the final weights are -- Base model + MNTP (LoRA) + SimCSE (LoRA).
+        # teacher_model = PeftModel.from_pretrained(
+        #     teacher_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
+        # )
+        # teacher_model = teacher_model.merge_and_unload()
 
         # if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
             
@@ -290,13 +290,37 @@ class Distiller(nn.Module):
         #         teacher_model,
         #         self.args.teacher_model_path
         #     )
-        classifier_path = os.path.join(self.args.teacher_model_path, "classifier_head.bin")
-        if os.path.exists(classifier_path):
-            log_rank("Loading classifier head from trained model...")
-            classifier_state_dict = torch.load(classifier_path, map_location="cpu")
-            teacher_model.score.load_state_dict(classifier_state_dict)
+        # classifier_path = os.path.join(self.args.teacher_model_path, "classifier_head.bin")
+        # if os.path.exists(classifier_path):
+        #     log_rank("Loading classifier head from trained model...")
+        #     classifier_state_dict = torch.load(classifier_path, map_location="cpu")
+        #     teacher_model.score.load_state_dict(classifier_state_dict)
+        # else:
+        #     log_rank("No classifier head found in teacher model path. Using default classifier.")
+        
+        log_rank("Loading teacher model...")
+        config = AutoConfig.from_pretrained(
+            self.args.teacher_model_path,
+            trust_remote_code=True
+        )
+        config.is_model_parallel = False
+
+        tokenizer = self.load_tokenizer(self.args.teacher_model_path)
+
+        if hasattr(config, "n_embed"):
+            self.teacher_hidden_size = config.n_embed
         else:
-            log_rank("No classifier head found in teacher model path. Using default classifier.")
+            self.teacher_hidden_size = config.hidden_size
+
+        config.num_labels = self.args.num_labels
+        model = AutoModelForSequenceClassification.from_pretrained(
+            self.args.teacher_model_path,
+            config=config,
+            device_map=None,
+            torch_dtype=self.dtype,
+            trust_remote_code=True,
+        )
+        model.config.pad_token_id = 2
         for param in teacher_model.parameters():
             param.requires_grad = False
         
