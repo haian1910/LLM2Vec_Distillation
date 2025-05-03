@@ -189,11 +189,6 @@ class Distiller(nn.Module):
                         ]
                     )
                     model = get_peft_model(model, peft_config)
-                    for param in model.parameters():
-                        param.requires_grad = False
-                    
-                    for param in model.score.parameters():
-                        param.requires_grad = True
                     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
                     all_params = sum(p.numel() for p in model.parameters())
                     print(f"Trainable parameters: {trainable_params}/{all_params} ({trainable_params/all_params:.2%})")
