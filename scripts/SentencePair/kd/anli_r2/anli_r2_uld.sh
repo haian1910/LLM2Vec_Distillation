@@ -21,7 +21,7 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/control/"
+DATA_DIR="${BASE_PATH}/data/anli_r2/"
 NUM_LABELS=3
 # task
 TASK="uld"
@@ -34,7 +34,7 @@ EPOCH=2
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
-MAX_LENGTH=512
+MAX_LENGTH=128
 
 # runtime
 PRECISION="bf16"
