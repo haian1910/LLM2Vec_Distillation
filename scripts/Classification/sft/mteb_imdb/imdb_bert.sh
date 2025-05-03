@@ -19,8 +19,8 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/patent/"
-NUM_LABELS=9
+DATA_DIR="${BASE_PATH}/data/imdb/"
+NUM_LABELS=2
 # task
 TASK="sft"
 # hp
