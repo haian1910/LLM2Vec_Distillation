@@ -24,11 +24,11 @@ NUM_LABELS=2
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=16
+BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=32
-EPOCH=2
+EVAL_BATCH_SIZE=4
+EPOCH=3
 # length
 MAX_LENGTH=512
 # runtime
@@ -82,13 +82,7 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
 
 
 export NCCL_DEBUG=""
