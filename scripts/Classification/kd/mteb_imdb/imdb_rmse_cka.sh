@@ -22,7 +22,7 @@ TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="link checkpoint"
 # data
 DATA_DIR="${BASE_PATH}/data/imdb/"
-NUM_LABELS=77
+NUM_LABELS=2
 # task
 TASK="rmse_cka"
 # hp
