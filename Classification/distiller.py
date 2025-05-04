@@ -264,7 +264,7 @@ class Distiller(nn.Module):
             adapter_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
             
             # Load the checkpoint and fix the keys
-            checkpoint = torch.load(adapter_path, map_location="CPU", weights_only=True)
+            checkpoint = torch.load(adapter_path, map_location="CPU")
             fixed_checkpoint = {}
             
             for key, value in checkpoint.items():
