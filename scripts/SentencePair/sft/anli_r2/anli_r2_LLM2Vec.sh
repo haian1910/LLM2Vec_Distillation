@@ -24,12 +24,12 @@ NUM_LABELS=3
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=16
+BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=16
-EPOCH=2
-LORA_RANK=32
+EVAL_BATCH_SIZE=4
+EPOCH=3
+LORA_RANK=256
 LORA_ALPHA=16
 LORA_DROPOUT=0.1
 # length
@@ -90,13 +90,7 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-if [[ $PRECISION == "bf16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-elif [[ $PRECISION == "fp16" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-elif [[ $PRECISION == "fp32" ]]; then
-    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-fi
+OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
 
 
 export NCCL_DEBUG=""
@@ -105,7 +99,7 @@ export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/SentencePair/distillation.py ${OPTS}"
 
+echo ${CMD}
 # ${CMD}
-${CMD} \
->> ${SAVE_PATH}/train.log 2>&1 &
-echo "Training started, logs are being saved to ${SAVE_PATH}/train.log"
+echo ${SAVE_PATH}/train.log
+${CMD} >> ${SAVE_PATH}/train.log 2>&1
