@@ -30,7 +30,7 @@ BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
-EPOCH=3
+EPOCH=10
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
@@ -108,6 +108,11 @@ export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/SentencePair/distillation.py ${OPTS}"
+
+echo ${CMD}
+# ${CMD}
+echo ${SAVE_PATH}/train.log
+${CMD} >> ${SAVE_PATH}/train.log 2>&1
 
 ${CMD} \
 >> ${SAVE_PATH}/train.log 2>&1 &
