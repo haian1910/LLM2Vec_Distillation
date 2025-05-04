@@ -278,7 +278,7 @@ class Distiller(nn.Module):
                 fixed_checkpoint[key] = value
             
             # Save the fixed checkpoint back to the original file
-            if fixed_checkpoint is not None: 
+            if fixed_checkpoint: 
                 torch.save(fixed_checkpoint, adapter_path)
             
             # Load the model with fixed weights
