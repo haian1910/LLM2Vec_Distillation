@@ -30,7 +30,7 @@ BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
-EPOCH=10
+EPOCH=7
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
@@ -113,6 +113,3 @@ echo ${CMD}
 # ${CMD}
 echo ${SAVE_PATH}/train.log
 ${CMD} >> ${SAVE_PATH}/train.log 2>&1
-
-${CMD} \
->> ${SAVE_PATH}/train.log 2>&1 &
