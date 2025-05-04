@@ -100,6 +100,7 @@ export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/QuestionAnswer/distillation.py ${OPTS}"
 
 # ${CMD}
-${CMD} \
->> ${SAVE_PATH}/train.log 2>&1 &
-echo "Training started, logs are being saved to ${SAVE_PATH}/train.log"
+echo ${CMD}
+# ${CMD}
+echo ${SAVE_PATH}/train.log
+${CMD} >> ${SAVE_PATH}/train.log 2>&1
