@@ -29,7 +29,7 @@ LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
 EPOCH=3
-LORA_RANK=32
+LORA_RANK=256
 LORA_ALPHA=16
 LORA_DROPOUT=0.1
 # length
@@ -99,7 +99,7 @@ export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/SentencePair/distillation.py ${OPTS}"
 
+echo ${CMD}
 # ${CMD}
-${CMD} \
->> ${SAVE_PATH}/train.log 2>&1 &
-echo "Training started, logs are being saved to ${SAVE_PATH}/train.log"
+echo ${SAVE_PATH}/train.log
+${CMD} >> ${SAVE_PATH}/train.log 2>&1
