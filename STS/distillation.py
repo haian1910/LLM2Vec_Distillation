@@ -231,9 +231,7 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
     student_model.eval()
     eval_info = {
         "loss": 0.0,
-        "sample_num": 0,
-        "predictions": [],
-        "targets": []
+        "sample_num": 0
     }
 
     all_preds = []
@@ -250,7 +248,6 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
             token_type_ids=input_batch.get("token_type_ids", None)
         )
         
-
         predictions = outputs.scores 
         # Compute MSE loss
         loss = F.mse_loss(predictions, targets)
@@ -279,6 +276,10 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
 
     all_preds = torch.cat(all_preds_gathered, dim=0)
     all_targets = torch.cat(all_targets_gathered, dim=0)
+
+    # Convert to float32 before converting to numpy (BFloat16 is not supported by numpy)
+    all_preds = all_preds.to(torch.float32)
+    all_targets = all_targets.to(torch.float32)
 
     # Convert to numpy for correlation metrics
     all_preds_np = all_preds.cpu().numpy().flatten()
