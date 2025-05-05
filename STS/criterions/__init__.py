@@ -1,7 +1,5 @@
 from .sts_loss import STSLoss
-from .various_divergence import VariousDivergenceD
 from .dual_space_kd_with_cross_model_attention import DualSpaceKDWithCMA
-from .universal_logit_distillation import UniversalLogitDistillation
 # from .min_edit_dis_kld import MinEditDisForwardKLD
 from .rmse_cka import RMSE_CKA
 from .ot import OT
@@ -12,7 +10,6 @@ from .ot_pro_rmse_cka import OT_PRO_RMSE_CKA
 criterion_list = {
     "sts_loss": STSLoss,
     "dual_space_kd_with_cross_model_attention": DualSpaceKDWithCMA,
-    "universal_logit_distillation": UniversalLogitDistillation,
     # "min_edit_dis_kld": MinEditDisForwardKLD,
     "rmse_cka": RMSE_CKA,
     "ot": OT,
