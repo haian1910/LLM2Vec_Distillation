@@ -50,7 +50,6 @@ mkdir -p ${SAVE_PATH}
 OPTS=""
 # model
 OPTS+=" --base-path ${BASE_PATH}"
-OPTS+=" --model-type ${CKPT_TYPE}"
 OPTS+=" --model-path ${CKPT_PATH}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
 OPTS+=" --teacher-model-type ${TEACHER_MODEL_TYPE}"
@@ -61,6 +60,7 @@ OPTS+=" --teacher-model-fp16"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 0"
 OPTS+=" --dev-num 1000"
+OPTS+=" --num-labels ${NUM_LABELS}"
 # task
 OPTS+=" --task ${TASK}"
 OPTS+=" --teacher-to-student-id-mapping ${TEA2STU_ID_MAP}"
@@ -76,6 +76,7 @@ OPTS+=" --clip-grad 1.0"
 OPTS+=" --num-epochs ${EPOCH}"
 OPTS+=" --kd-rate ${KD_RATE}"
 OPTS+=" --kd-temperature ${KD_TEMP}"
+OPTS+=" --kd-objective ${KD_OBJ}"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
@@ -99,8 +100,7 @@ export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/code/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
 
-# ${CMD}
 ${CMD} \
 >> ${SAVE_PATH}/train.log 2>&1 &
