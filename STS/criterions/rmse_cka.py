@@ -23,13 +23,6 @@ class RMSE_CKA(STSLoss):
         model = distiller.student_model # BERT
         teacher_model = distiller.teacher_model # LLM2VEC
 
-        with torch.no_grad():
-            teacher_model.eval()
-            teacher_outputs = teacher_model(
-                input_data["teacher_input_ids"],
-                attention_mask=input_data["teacher_attention_mask"],
-                output_hidden_states=True)
-
 
         tokenizer_student = distiller.student_tokenizer
         tokenizer_teacher = distiller.teacher_tokenizers
@@ -400,21 +393,16 @@ class RMSE_CKA(STSLoss):
             output_hidden_states=True
         )
 
-        logits = outputs.logits
+        predictions = outputs.scores
 
         loss_ce = self.compute_sts_loss(
-            logits,
+            predictions,
             output_data["labels"],
         )[0]
         log = {}
         print("loss_ce:", loss_ce)
         loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
         log["loss"] = loss
-
-        accuracy = self.compute_accuracy(
-            logits, output_data["labels"], 
-        )
-        log["accuracy"] = accuracy
 
         logging_output = self.record_logging_output(
             logging_output, batch_denom, log

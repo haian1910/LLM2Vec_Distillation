@@ -32,12 +32,12 @@ class OT(STSLoss):
             attention_mask=input_data["attention_mask"],
             output_hidden_states=True
         )
-        logits = outputs.logits
+        predictions = outputs.scores
         log = {}
         
         # Compute cross-entropy loss with ground-truth labels
         loss = self.compute_sts_loss(
-            outputs.logits, output_data["labels"]
+            predictions, output_data["labels"]
         )[0]
 
         # Teacher forward pass (no gradient)
@@ -63,11 +63,6 @@ class OT(STSLoss):
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
 
-        # Compute accuracy
-        accuracy = self.compute_accuracy(
-            logits, output_data["labels"]
-        )
-        log["accuracy"] = accuracy
 
         # # Update logging output
         # logging_output = self.record_logging_output(
@@ -98,7 +93,7 @@ class OT(STSLoss):
         return dist_mt
     
     def compute_ot_loss(
-        self, outputs, teacher_outputs, attention_mask_student, attention_mask_teacher, log, distiller, logits=False
+        self, outputs, teacher_outputs, attention_mask_student, attention_mask_teacher, log, distiller
     ):
         # Get the last hidden state from both models
         student_features = outputs.hidden_states[-1]  # Shape: (batch_size, seq_len, hidden_dim)

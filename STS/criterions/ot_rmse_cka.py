@@ -35,12 +35,12 @@ class OT_RMSE_CKA(STSLoss):
             attention_mask=input_data["attention_mask"],
             output_hidden_states=True
         )
-        logits = outputs.logits
+        predictions = outputs.scores
         log = {}
         
         # Compute cross-entropy loss with ground-truth labels
         loss = self.compute_sts_loss(
-            outputs.logits, output_data["labels"]
+            predictions, output_data["labels"]
         )[0]
 
         # Teacher forward pass (no gradient)
@@ -429,11 +429,6 @@ class OT_RMSE_CKA(STSLoss):
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate *(att_loss_total_1 + 0.1*att_loss_total_2 + kd_loss) 
         log["loss"] = loss
 
-        # Compute accuracy
-        accuracy = self.compute_accuracy(
-            logits, output_data["labels"]
-        )
-        log["accuracy"] = accuracy
         return loss, logging_output
     
     def pairwise_euclidean_distance(self, x, y):
@@ -459,7 +454,7 @@ class OT_RMSE_CKA(STSLoss):
         return dist_mt
     
     def compute_ot_loss(
-        self, outputs, teacher_outputs, attention_mask_student, attention_mask_teacher, log, distiller, logits=False
+        self, outputs, teacher_outputs, attention_mask_student, attention_mask_teacher, log, distiller
     ):
         # Get the last hidden state from both models
         student_features = outputs.hidden_states[-1]  # Shape: (batch_size, seq_len, hidden_dim)

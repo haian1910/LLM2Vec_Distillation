@@ -42,7 +42,7 @@ class OT_PRO_RMSE_CKA(STSLoss):
             attention_mask=input_data["attention_mask"],
             output_hidden_states=True
         )
-        logits = outputs.logits
+        predictions = outputs.scores
         log = {}
 
         # Teacher forward pass (no gradient)
@@ -411,7 +411,7 @@ class OT_PRO_RMSE_CKA(STSLoss):
 
         # Compute cross-entropy loss with ground-truth labels
         loss = self.compute_sts_loss(
-            outputs.logits, output_data["labels"]
+            predictions, output_data["labels"]
         )[0]
 
         # Compute distillation loss using optimal transport
@@ -428,12 +428,6 @@ class OT_PRO_RMSE_CKA(STSLoss):
         # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate *(0.1*att_loss_total_2 + kd_loss)
         log["loss"] = loss
-
-        # Compute accuracy
-        accuracy = self.compute_accuracy(
-            logits, output_data["labels"]
-        )
-        log["accuracy"] = accuracy
 
         return loss, logging_output
     
