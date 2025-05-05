@@ -76,7 +76,6 @@ OPTS+=" --clip-grad 1.0"
 OPTS+=" --num-epochs ${EPOCH}"
 OPTS+=" --kd-rate ${KD_RATE}"
 OPTS+=" --kd-temperature ${KD_TEMP}"
-OPTS+=" --kd-objective ${KD_OBJ}"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
