@@ -37,8 +37,9 @@ MAX_LENGTH=512
 # runtime
 PRECISION="bf16"
 CRITERION="min_edit_dis_kld"
+KD_OBJ="forward_kl"  # [forward_kl, reverse_kl, js_divergence, skewed_forward_kl, skewed_reverse_kl, adaptive_kl]
+CONFIG="${KD_OBJ}"
 TEA2STU_ID_MAP="${BASE_PATH}/configs/projector_config.json"
-CONFIG="default-${PRECISION}"
 SETTING=criterion=${CRITERION}__${CONFIG}__teacher=${TEACHER_MODEL_NAME}__kd^rate=${KD_RATE}__kd^temp=${KD_TEMP}__epoch=${EPOCH}__bsz=${BATCH_SIZE}x${GRAD_ACC}x${GPUS_PER_NODE}=$((BATCH_SIZE * GRAD_ACC * GPUS_PER_NODE * NNODES))__lr=${LR}
 SAVE_PATH="${BASE_PATH}/outputs/${CKPT_TYPE}/${CKPT_NAME}/${TASK}/${SETTING}"
 SAVE_BEST_N_CKPTS=1
@@ -63,7 +64,6 @@ OPTS+=" --dev-num 1000"
 OPTS+=" --num-labels ${NUM_LABELS}"
 # task
 OPTS+=" --task ${TASK}"
-OPTS+=" --teacher-to-student-id-mapping ${TEA2STU_ID_MAP}"
 # hp
 OPTS+=" --lr ${LR}"
 OPTS+=" --batch-size ${BATCH_SIZE}"
@@ -76,6 +76,9 @@ OPTS+=" --clip-grad 1.0"
 OPTS+=" --num-epochs ${EPOCH}"
 OPTS+=" --kd-rate ${KD_RATE}"
 OPTS+=" --kd-temperature ${KD_TEMP}"
+OPTS+=" --kd-objective ${KD_OBJ}"
+
+OPTS+=" --teacher-to-student-id-mapping ${TEA2STU_ID_MAP}"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
