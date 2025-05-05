@@ -1,9 +1,9 @@
 import torch
-from .cross_entropy_loss import CrossEntropyLoss
+from .sts_loss import STSLoss
 import torch.nn as nn
 import math
 
-class OT(CrossEntropyLoss):
+class OT(STSLoss):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
@@ -36,7 +36,7 @@ class OT(CrossEntropyLoss):
         log = {}
         
         # Compute cross-entropy loss with ground-truth labels
-        loss = self.compute_cross_entropy_loss(
+        loss = self.compute_sts_loss(
             outputs.logits, output_data["labels"]
         )[0]
 

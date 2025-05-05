@@ -176,17 +176,6 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
                     tokenizer.save_pretrained(save_dir_path)
                     log_rank("Saving model...")
                     model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
-                    
-                    # Save regression head if exists
-                    if hasattr(model.module.student_model, 'regression_head'):
-                        log_rank("Saving regression head...")
-                        torch.save(model.module.student_model.regression_head.state_dict(), 
-                                  os.path.join(save_dir_path, "regression_head.bin"))
-                    elif hasattr(model.module, 'regression_head'):
-                        log_rank("Saving distiller regression head...")
-                        torch.save(model.module.regression_head.state_dict(), 
-                                  os.path.join(save_dir_path, "regression_head.bin"))
-                    
                     log_rank("Saving config")
                     model.module.student_model.config.save_pretrained(save_dir_path)
                 
@@ -253,7 +242,7 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
     
     for input_batch, output_batch in tqdm(dataloader, desc="Processing batches"):
         dataset.move_to_device([input_batch, output_batch], device)
-        targets = output_batch["scores"]
+        targets = output_batch["labels"]
         
         outputs = student_model(
             input_ids=input_batch["input_ids"],
@@ -261,21 +250,8 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
             token_type_ids=input_batch.get("token_type_ids", None)
         )
         
-        # Handle different model output formats
-        if hasattr(outputs, "logits"):
-            logits = outputs.logits
-        else:
-            logits = outputs
-            
-        # Apply regression head if needed or use mean pooling for final predictions
-        if hasattr(student_model, 'regression_head'):
-            predictions = student_model.regression_head(logits)
-        elif logits.size(-1) != 1:
-            # Simple mean pooling if no regression head
-            predictions = logits.mean(dim=-1, keepdim=True)
-        else:
-            predictions = logits
-            
+
+        predictions = outputs.scores 
         # Compute MSE loss
         loss = F.mse_loss(predictions, targets)
         
@@ -382,31 +358,6 @@ def main():
         mpu=None,
         config_params=ds_config
     )
-    
-    # Initialize regression head if not present in the model
-    if not hasattr(model_engine.module.student_model, 'regression_head') and not hasattr(model_engine.module, 'regression_head'):
-        # Get the output dimension of the model
-        with torch.no_grad():
-            # Run a small forward pass to get output dimensions
-            sample_input = next(iter(DataLoader(dataset["train"], batch_size=1, collate_fn=dataset["train"].collate)))
-            input_batch, _ = sample_input
-            dataset["train"].move_to_device([input_batch], device)
-            sample_output = model_engine.module.student_model(
-                input_ids=input_batch["input_ids"],
-                attention_mask=input_batch["attention_mask"],
-                token_type_ids=input_batch.get("token_type_ids", None)
-            )
-            
-            if hasattr(sample_output, "logits"):
-                output_dim = sample_output.logits.size(-1)
-            else:
-                output_dim = sample_output.size(-1)
-                
-        # Create regression head
-        model_engine.module.regression_head = nn.Linear(output_dim, 1).to(device)
-        model_engine.module.regression_head.weight.data.normal_(mean=0.0, std=0.02)
-        model_engine.module.regression_head.bias.data.zero_()
-        log_rank(f"Created regression head: input dim {output_dim}, output dim 1")
     
     if args.do_train:
         finetune(args, distiller.student_tokenizer, model_engine, optimizer, lr_scheduler, dataset, device)

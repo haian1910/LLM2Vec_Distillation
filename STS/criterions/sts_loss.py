@@ -15,7 +15,7 @@ class STSLoss(nn.Module):
         """
         self.distiller = distiller
         model = distiller.student_model
-        target = output_data["scores"]  # Change from "labels" to "scores" for STS
+        target = output_data["labels"]
 
         # Forward pass through the model
         model_output = model(
@@ -24,12 +24,8 @@ class STSLoss(nn.Module):
             token_type_ids=input_data['token_type_ids']
         )
         
-        # For regression, we expect a single output value
-        # Check if the model outputs a dictionary with a specific key or just the prediction
-        if hasattr(model_output, "logits"):
-            predictions = model_output.logits
-        else:
-            predictions = model_output
+        predictions = model_output.scores
+
             
         # Ensure predictions are the right shape
         if predictions.shape[-1] != 1:

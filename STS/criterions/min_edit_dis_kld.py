@@ -36,7 +36,7 @@ class MinEditDisForwardKLD(VariousDivergence):
 
         logits = outputs.logits
         log = {}
-        loss_ce = self.compute_cross_entropy_loss(
+        loss_ce = self.compute_sts_loss(
             logits,
             output_data["labels"])[0]
 

@@ -3,10 +3,10 @@ from transformers import AutoTokenizer, AutoConfig, AutoModel
 import torch
 import torch.nn as nn
 import re
-from .cross_entropy_loss import CrossEntropyLoss
+from .sts_loss import STSLoss
 
 
-class RMSE_CKA(CrossEntropyLoss):
+class RMSE_CKA(STSLoss):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
@@ -402,7 +402,7 @@ class RMSE_CKA(CrossEntropyLoss):
 
         logits = outputs.logits
 
-        loss_ce = self.compute_cross_entropy_loss(
+        loss_ce = self.compute_sts_loss(
             logits,
             output_data["labels"],
         )[0]

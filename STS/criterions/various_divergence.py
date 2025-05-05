@@ -1,8 +1,8 @@
 import torch
-from .cross_entropy_loss import CrossEntropyLoss
+from .sts_loss import STSLoss
 
 
-class VariousDivergence(CrossEntropyLoss):
+class VariousDivergence(STSLoss):
     def __init__(self, args) -> None:
         super(VariousDivergence, self).__init__(args)
         self.kd_rate = args.kd_rate
@@ -44,7 +44,7 @@ class VariousDivergence(CrossEntropyLoss):
         )
         logits = outputs.logits
         log = {}
-        loss = self.compute_cross_entropy_loss(
+        loss = self.compute_sts_loss(
             outputs.logits, output_data["labels"], log=log
         )[0]
 
