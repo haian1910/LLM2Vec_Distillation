@@ -17,7 +17,7 @@ from peft import (
 )
 from utils import log_rank
 from huggingface_hub import login
-
+import torch.distributed as dist
 import os
 #token = os.getenv("HF_TOKEN")
 #login(token=token)
@@ -262,30 +262,36 @@ class Distiller(nn.Module):
             
             # Path to the adapter model weights
             adapter_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
-            
-            # Load the checkpoint and fix the keys
-            checkpoint = torch.load(adapter_path)
-            fixed_checkpoint = {}
-            
-            for key, value in checkpoint.items():
-                if "lora_A.weight" in key and "default" not in key:
-                    key = key.replace("lora_A.weight", "lora_A.default.weight")
-                if "lora_B.weight" in key and "default" not in key:
-                    key = key.replace("lora_B.weight", "lora_B.default.weight")
-                if "base_model.model.base_model.model" in key:
-                    key = key.replace("base_model.model.base_model.model", "base_model.model")
+            fixed_adapter_path = adapter_path + ".fixed"
+            if not os.path.exists(fixed_adapter_path):
+                if dist.get_rank() == 0:
+                    # Load the checkpoint and fix the keys
+                    checkpoint = torch.load(adapter_path)            
+                    fixed_checkpoint = {}
                     
-                fixed_checkpoint[key] = value
+                    for key, value in checkpoint.items():
+                        if "lora_A.weight" in key and "default" not in key:
+                            key = key.replace("lora_A.weight", "lora_A.default.weight")
+                        if "lora_B.weight" in key and "default" not in key:
+                            key = key.replace("lora_B.weight", "lora_B.default.weight")
+                        if "base_model.model.base_model.model" in key:
+                            key = key.replace("base_model.model.base_model.model", "base_model.model")
+                            
+                        fixed_checkpoint[key] = value
+                    
+                    # Save the fixed checkpoint back to the original file
+                    if fixed_checkpoint: 
+                        torch.save(fixed_checkpoint, fixed_adapter_path)
             
-            # Save the fixed checkpoint back to the original file
-            if fixed_checkpoint: 
-                torch.save(fixed_checkpoint, adapter_path)
+            dist.barrier()  
             
-            # Load the model with fixed weights
             teacher_model = PeftModel.from_pretrained(
                 teacher_model,
-                self.args.teacher_model_path
+                self.args.teacher_model_path,
+                adapter_name="default",
+                adapter_weights_path=fixed_adapter_path
             )
+
         classifier_path = os.path.join(self.args.teacher_model_path, "classifier_head.bin")
         if os.path.exists(classifier_path):
             log_rank("Loading classifier head from trained model...")
