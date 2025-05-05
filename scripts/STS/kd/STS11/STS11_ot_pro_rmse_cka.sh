@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
+GPUS=(0)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,22 +15,22 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/LLM2Vec_Distillation
+BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
-DATA_DIR="${BASE_PATH}/data/banking77/"
+DATA_DIR="${BASE_PATH}/data/stsbenchmark_30/"
 NUM_LABELS=77
 # task
 TASK="ot_pro_rmse_cka"
 # hp
-BATCH_SIZE=2
+BATCH_SIZE=1
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=2
-EPOCH=3
+EVAL_BATCH_SIZE=1
+EPOCH=1
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
@@ -108,7 +108,7 @@ export NCCL_DEBUG=""
 export WANDB_DISABLED=True
 export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
-CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/Classification/distillation.py ${OPTS}"
+CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/STS/distillation.py ${OPTS}"
 
 ${CMD} \
 >> ${SAVE_PATH}/train.log 2>&1 &
