@@ -108,11 +108,11 @@ class Sinkhorn_seq(nn.Module):
                 
             # Check inputs for NaN values
             if torch.isnan(x).any() or torch.isinf(x).any():
-                print("Input x to sinkhorn_loss contains NaN or Inf values")
+                
                 x = torch.nan_to_num(x, nan=0.0, posinf=1e6, neginf=-1e6)
                 
             if torch.isnan(y).any() or torch.isinf(y).any():
-                print("Input y to sinkhorn_loss contains NaN or Inf values")
+                
                 y = torch.nan_to_num(y, nan=0.0, posinf=1e6, neginf=-1e6)
             
             # Compute distance matrix - use manual implementation for BFloat16
@@ -124,12 +124,12 @@ class Sinkhorn_seq(nn.Module):
                     Wxy = torch.cdist(x, y, p=1)
                 except RuntimeError as e:
                     # Fallback to manual implementation if cdist fails
-                    print(f"Falling back to manual cdist implementation: {e}")
+                    
                     Wxy = self.manual_cdist(x, y, p=1)
             
             # Check distance matrix for extreme values
             if torch.isnan(Wxy).any() or torch.isinf(Wxy).any():
-                print("Distance matrix contains NaN or Inf values")
+                
                 Wxy = torch.nan_to_num(Wxy, nan=0.0, posinf=1e6, neginf=-1e6)
                 
             # Compute kernel with numerical stability
@@ -139,7 +139,7 @@ class Sinkhorn_seq(nn.Module):
             
             # Check kernel for NaN values
             if torch.isnan(K).any() or torch.isinf(K).any():
-                print("Kernel matrix contains NaN or Inf values")
+                
                 K = torch.nan_to_num(K, nan=1e-8, posinf=1.0, neginf=0.0)
             
             # Apply Sinkhorn normalization
@@ -150,14 +150,14 @@ class Sinkhorn_seq(nn.Module):
             
             # Final safety check
             if torch.isnan(loss) or torch.isinf(loss):
-                print("Final Sinkhorn loss is NaN or Inf")
+                
                 return torch.tensor(0.0, device=x.device)
                 
             # Convert back to original dtype
             return loss.to(orig_dtype)
             
         except Exception as e:
-            print(f"Error in sinkhorn_loss: {e}")
+            
             return torch.tensor(0.0, device=x.device)
             
     def forward(self, y_s, y_t):
@@ -178,7 +178,7 @@ class Sinkhorn_seq(nn.Module):
             p_t = torch.nan_to_num(p_t, nan=1e-8)
             
             # Print information about data type
-            print(f"Sinkhorn processing tensors of dtype: {p_s.dtype}")
+            
             
             emd_loss = 0
             valid_samples = 0
@@ -194,7 +194,7 @@ class Sinkhorn_seq(nn.Module):
                     emd_loss += 0.001 * sample_loss
                     valid_samples += 1
                 except Exception as e:
-                    print(f"Error processing sample {i} in Sinkhorn forward: {e}")
+                    
                     
             # Return mean loss if there are valid samples, otherwise return zero
             if valid_samples > 0:
@@ -203,7 +203,7 @@ class Sinkhorn_seq(nn.Module):
                 return torch.tensor(0.0, device=y_s.device)
                 
         except Exception as e:
-            print(f"Error in Sinkhorn forward pass: {e}")
+            
             return torch.tensor(0.0, device=y_s.device)
 
 def greedy_algorithm_adjust_s(t, s):
@@ -282,7 +282,7 @@ class MULTI_LEVEL_OT(VariousDivergence):
         kd_loss, log = self.compute_multi_level_ot_distillation_loss(
             outputs, teacher_outputs, output_data, distiller, log
         )
-        print("multi_level_ot_loss:", kd_loss)
+        
         # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
@@ -308,8 +308,6 @@ class MULTI_LEVEL_OT(VariousDivergence):
         answers_index = []
         answers_size = []
         
-        # Debug the shape of the input
-        print(f"Answer tensors shape: {answer_tensors.shape if hasattr(answer_tensors, 'shape') else 'No shape'}")
         
         # Handle case where answer_tensors is a single tensor, not a list
         if isinstance(answer_tensors, torch.Tensor) and answer_tensors.dim() <= 2:
@@ -356,7 +354,7 @@ class MULTI_LEVEL_OT(VariousDivergence):
                 
         # Ensure we have at least some valid answers for processing
         if all(size == 0 for size in answers_size):
-            print("Warning: No valid answers found in any tensor. Setting default values.")
+            
             for i in range(len(answers_size)):
                 answers_index[i] = 0
                 answers_size[i] = 1  # Assume at least one token is valid
@@ -367,18 +365,10 @@ class MULTI_LEVEL_OT(VariousDivergence):
         student = outputs.logits
         teacher = teacher_outputs.logits
         target = output_data["labels"]
-
-        # Print tensor shapes and dtypes for debugging
-        print(f"Student logits shape: {student.shape}, dtype: {student.dtype}, min: {student.min().item()}, max: {student.max().item()}")
-        print(f"Teacher logits shape: {teacher.shape}, dtype: {teacher.dtype}, min: {teacher.min().item()}, max: {teacher.max().item()}")
-        print(f"Target shape: {target.shape if hasattr(target, 'shape') else 'No shape'}")
         
         # Get answer first token and answer size
         student_answer_index, student_answer_size = self.__get_start_and_size_answers(target)
         teacher_answer_index, teacher_answer_size = self.__get_start_and_size_answers(target)
-        
-        print(f"Student answer sizes: {student_answer_size}")
-        print(f"Teacher answer sizes: {teacher_answer_size}")
         
         # Ensure sizes are reasonable
         valid_samples = sum(1 for size in student_answer_size if size > 0)
@@ -386,18 +376,18 @@ class MULTI_LEVEL_OT(VariousDivergence):
             # Force valid samples for all batch entries
             student_answer_size = [1] * len(student_answer_index)
             teacher_answer_size = [1] * len(teacher_answer_index)
-            print("Forcing valid answers for all samples")
+            
         
         # Handle 2D case specifically - reshape to 3D if needed
         if student.dim() == 2:
             # If [batch_size, vocab_size] - reshape to [batch_size, 1, vocab_size]
             student = student.unsqueeze(1)
-            print(f"Reshaped student to: {student.shape}")
+            
         
         if teacher.dim() == 2:
             # If [batch_size, vocab_size] - reshape to [batch_size, 1, vocab_size]
             teacher = teacher.unsqueeze(1)
-            print(f"Reshaped teacher to: {teacher.shape}")
+            
             
         # Ensure 3D tensors for processing
         if student.dim() < 3:
@@ -414,7 +404,7 @@ class MULTI_LEVEL_OT(VariousDivergence):
             student = normalize(student)
             teacher = normalize(teacher)
         except Exception as e:
-            print(f"Error during normalization: {e}")
+            
             student = torch.nan_to_num(student, nan=0.0)
             teacher = torch.nan_to_num(teacher, nan=0.0)
         
@@ -441,7 +431,6 @@ class MULTI_LEVEL_OT(VariousDivergence):
             student = torch.stack(student_processed, dim=0)
             teacher = torch.stack(teacher_processed, dim=0)
             
-            print(f"After processing for single token case - Student: {student.shape}, Teacher: {teacher.shape}")
         else:
             # Standard processing for multi-token case
             student_processed = []
@@ -523,12 +512,11 @@ class MULTI_LEVEL_OT(VariousDivergence):
             sinkorn_loss_fn = Sinkhorn_seq()
             # Convert to float32 if necessary before passing to Sinkhorn
             if student.dtype == torch.bfloat16 or teacher.dtype == torch.bfloat16:
-                print("Converting BFloat16 tensors to Float32 for Sinkhorn loss calculation")
             sinkhorn_loss = sinkorn_loss_fn(teacher, student) * 0.1
             if torch.isnan(sinkhorn_loss) or torch.isinf(sinkhorn_loss):
                 sinkhorn_loss = torch.tensor(0.0, device=student.device)
         except Exception as e:
-            print(f"Error computing Sinkhorn loss: {e}")
+
             sinkhorn_loss = torch.tensor(0.0, device=student.device)
         
         # Combine all losses
@@ -537,11 +525,9 @@ class MULTI_LEVEL_OT(VariousDivergence):
         
         # Safety check for final loss
         if torch.isnan(multi_level_ot_loss) or torch.isinf(multi_level_ot_loss):
-            print("Final loss is NaN or Inf, returning zero")
+
             multi_level_ot_loss = torch.tensor(0.0, device=student.device)
         
-        print(f"L_HAD: {mean_distillation_loss.item()}, L_SL: {kl_loss.item()}, L_SD: {sinkhorn_loss.item()}")
-        print(f"Final multi_level_ot_loss: {multi_level_ot_loss.item()}")
         
         log["multi_level_ot_loss"] = multi_level_ot_loss
         return multi_level_ot_loss, log
