@@ -1,5 +1,5 @@
 import torch
-import nn
+import torch.nn as nn
 
 class DualSpaceKDWithCMA():
     def __init__(self, args) -> None:
