@@ -1,8 +1,6 @@
 from .sts_loss import STSLoss
 from .dual_space_kd_with_cross_model_attention import DualSpaceKDWithCMA
 from .rmse_cka import RMSE_CKA
-from .ot import OT
-from .ot_rmse_cka import OT_RMSE_CKA
 from .ot_pro import OT_PRO
 from .ot_pro_rmse_cka import OT_PRO_RMSE_CKA
 
@@ -10,8 +8,6 @@ criterion_list = {
     "sts_loss": STSLoss,
     "dual_space_kd_with_cross_model_attention": DualSpaceKDWithCMA,
     "rmse_cka": RMSE_CKA,
-    "ot": OT,
-    "ot_rmse_cka": OT_RMSE_CKA,
     "ot_pro": OT_PRO,
     "ot_pro_rmse_cka": OT_PRO_RMSE_CKA
 }
