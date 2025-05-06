@@ -290,18 +290,17 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
     spearman_correlation, _ = spearmanr(all_preds_np, all_targets_np)
     
     # Update evaluation info
-    eval_info["loss"] = all_dp_loss / eval_info["sample_num"]
-    eval_info["pearson"] = round(pearson_correlation, 6)
-    eval_info["spearman"] = round(spearman_correlation, 6)
-    eval_info["mse"] = round(((all_preds_np - all_targets_np) ** 2).mean(), 6)
-    
+    eval_info["loss"] = float(all_dp_loss / eval_info["sample_num"])
+    eval_info["pearson"] = round(float(pearson_correlation), 6)
+    eval_info["spearman"] = round(float(spearman_correlation), 6)
+    eval_info["mse"] = round(float(((all_preds_np - all_targets_np) ** 2).mean()), 6)
+
     if dist.get_rank() == 0:
         print(f"Evaluated: {split} | {eval_info}")
 
     student_model.train()
 
     return eval_info["loss"], eval_info["pearson"], eval_info["spearman"]
-
 def main():
     torch.backends.cudnn.enabled = False
     args = get_args()
