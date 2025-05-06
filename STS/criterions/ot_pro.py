@@ -31,11 +31,12 @@ class OT_PRO(STSLoss):
         tokenizer_student = distiller.student_tokenizer
         tokenizer_teacher = distiller.teacher_tokenizers
 
-        # Bản đồ token đặc biệt
+        # Map of special tokens
         TOKENIZER_TO_SPECIAL_TOKEN = {
-            type(tokenizer_teacher): "<s>",  # Token đặc biệt của teacher
-            type(tokenizer_student): "[CLS]"   # Token đặc biệt của student
+            type(tokenizer_teacher): "<s>",  # Teacher special token
+            type(tokenizer_student): "[CLS]"  # Student special token
         }
+        
         # Student forward pass
         outputs = model(
             input_data["input_ids"],
@@ -45,11 +46,29 @@ class OT_PRO(STSLoss):
         predictions = outputs.scores
         log = {}
         
+        # Get the model's dtype (likely bf16)
+        model_dtype = next(model.parameters()).dtype
+        
+        # Ensure predictions and labels have the same shape and dtype
+        # The warning suggests there's a dimensionality mismatch
+        if predictions.dim() != output_data["labels"].dim():
+            if predictions.shape[0] == output_data["labels"].shape[0]:
+                # Make sure labels match predictions dimensions
+                if predictions.dim() > output_data["labels"].dim():
+                    output_data["labels"] = output_data["labels"].unsqueeze(-1)
+                else:
+                    predictions = predictions.squeeze(-1)
+        
+        # Ensure consistent dtype
+        output_data["labels"] = output_data["labels"].to(dtype=model_dtype)
+        predictions = predictions.to(dtype=model_dtype)
+                
         # Compute cross-entropy loss with ground-truth labels
         loss_mse = nn.MSELoss()
         loss = loss_mse(
             predictions, output_data["labels"]
         )
+        
         # Teacher forward pass (no gradient)
         with torch.no_grad():
             teacher_model.eval()
@@ -68,17 +87,17 @@ class OT_PRO(STSLoss):
             attention_mask_student=input_data["attention_mask"],
             attention_mask_teacher=input_data["teacher_attention_mask"],
             log=log,
-            distiller=distiller
+            distiller=distiller,
+            model_dtype=model_dtype  # Pass model_dtype to ensure consistency
         )
         
-        # Combine losses
+        # Combine losses - ensure they're both in the same dtype
+        loss = loss.to(dtype=model_dtype)
+        kd_loss = kd_loss.to(dtype=model_dtype)
+        
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
-        log["loss"] = loss
+        log["loss"] = loss.detach().item()  # Use item() to avoid tensor in log
 
-        # # Update logging output
-        # logging_output = self.record_logging_output(
-        #     logging_output, batch_denom, log
-        # )
         return loss, logging_output
     
     def pairwise_euclidean_distance(self, x, y):
@@ -103,8 +122,12 @@ class OT_PRO(STSLoss):
         dist_mt = 1.0 - attention_weights
         return dist_mt
     
-    def compute_token_importance(self, attention_weights, tokens):
+    def compute_token_importance(self, attention_weights, tokens, dtype=None):
         device = attention_weights.device
+        
+        # Ensure consistent dtype if provided
+        if dtype is not None:
+            attention_weights = attention_weights.to(dtype=dtype)
         
         # Check if attention_weights is 3D (with multiple heads) or 2D (single attention matrix)
         if len(attention_weights.shape) == 3:
@@ -193,7 +216,8 @@ class OT_PRO(STSLoss):
     
     def project_importance(self, teacher_importance, teacher_tokens, student_tokens, mapping):
         device = teacher_importance.device
-        student_importance = torch.zeros(len(student_tokens), device=device)
+        dtype = teacher_importance.dtype
+        student_importance = torch.zeros(len(student_tokens), device=device, dtype=dtype)
         
         # Get valid teacher tokens based on attention mask
         valid_teacher_tokens = teacher_tokens[:teacher_importance.shape[0]]
@@ -229,19 +253,24 @@ class OT_PRO(STSLoss):
         return student_importance
     
     def compute_ot_loss(
-        self, input_data, outputs, teacher_outputs, attention_mask_student, attention_mask_teacher, log, distiller
+        self, input_data, outputs, teacher_outputs, attention_mask_student, 
+        attention_mask_teacher, log, distiller, model_dtype=None
     ):
         # Get the last hidden state from both models
         student_features = outputs.hidden_states[-1]  # Shape: (batch_size, seq_len, hidden_dim)
         teacher_features = teacher_outputs.hidden_states[-1]  # Shape: (batch_size, seq_len, hidden_dim)
         
-        # Extract and determine target dtype (float32 for highest precision)
-        target_dtype = torch.float32  # Use a consistent dtype for all tensors
+        # Use model_dtype if provided, otherwise use student_features dtype
+        target_dtype = model_dtype if model_dtype is not None else student_features.dtype
+        
+        # Ensure feature tensors have the correct dtype
+        student_features = student_features.to(dtype=target_dtype)
+        teacher_features = teacher_features.to(dtype=target_dtype)
         
         tokenizer_teacher = distiller.teacher_tokenizers
         tokenizer_student = distiller.student_tokenizer
         batch_size = teacher_features.size(0)
-        total_loss = 0
+        total_loss = torch.tensor(0.0, device=student_features.device, dtype=target_dtype)
         
         # Check if projector exists
         if not hasattr(distiller, 'projectors') or 't2s' not in distiller.projectors:
@@ -257,12 +286,10 @@ class OT_PRO(STSLoss):
             student_input_ids = input_data["input_ids"][b]
             
             # Truncate teacher input_ids to remove padding
-            # Fix for the TypeError: Convert tensor to integer using int() before slicing
             valid_teacher_len = int(attention_mask_teacher[b].sum().item())
             valid_teacher_input_ids = teacher_input_ids[:valid_teacher_len]
             
             # Truncate student input_ids to remove padding
-            # Fix for potential similar error in student input_ids
             valid_student_len = int(attention_mask_student[b].sum().item())
             valid_student_input_ids = student_input_ids[:valid_student_len]
             
@@ -282,12 +309,19 @@ class OT_PRO(STSLoss):
             valid_teacher_seq = teacher_seq[teacher_mask.bool()]  # Shape: (valid_seq_len, hidden_dim)
             valid_student_seq = student_seq[student_mask.bool()]  # Shape: (valid_seq_len, hidden_dim)
             
-            # Project each row of teacher_seq to student space
-            projected_teacher_seq = projector(valid_teacher_seq)  # Now project after pruning
+            # Skip if either sequence is empty
+            if valid_teacher_seq.size(0) == 0 or valid_student_seq.size(0) == 0:
+                continue
+                
+            # Ensure sequences have the target dtype
+            valid_teacher_seq = valid_teacher_seq.to(dtype=target_dtype)
+            valid_student_seq = valid_student_seq.to(dtype=target_dtype)
             
-            # Ensure both tensors are in the same dtype
-            dtype = valid_student_seq.dtype
-            projected_teacher_seq = projected_teacher_seq.to(dtype)
+            # Project each row of teacher_seq to student space
+            projected_teacher_seq = projector(valid_teacher_seq)
+            
+            # Ensure correct dtype after projection
+            projected_teacher_seq = projected_teacher_seq.to(dtype=target_dtype)
             
             # Process attention weights
             if hasattr(teacher_outputs, 'attentions') and teacher_outputs.attentions is not None:
@@ -297,10 +331,16 @@ class OT_PRO(STSLoss):
                 valid_teacher_attention = teacher_attention[:, :valid_teacher_len, :valid_teacher_len]
                 
                 # Compute token importance from teacher attention
-                teacher_importance = self.compute_token_importance(valid_teacher_attention, teacher_tokens[:valid_teacher_len])
+                teacher_importance = self.compute_token_importance(
+                    valid_teacher_attention, 
+                    teacher_tokens[:valid_teacher_len],
+                    dtype=target_dtype
+                )
             else:
                 # Fallback if attentions not available
-                teacher_importance = torch.ones(len(teacher_tokens), device=teacher_seq.device)
+                teacher_importance = torch.ones(len(teacher_tokens), 
+                                              device=teacher_seq.device, 
+                                              dtype=target_dtype)
                 teacher_importance = torch.softmax(teacher_importance, dim=0)
             
             # Create token mapping between teacher and student
@@ -321,9 +361,9 @@ class OT_PRO(STSLoss):
             tea_mass = tea_mass[:valid_teacher_seq.size(0)]
             stu_mass = stu_mass[:valid_student_seq.size(0)]
             
-            # Convert all tensors to the target dtype (float32) for computation safety
-            valid_student_seq = valid_student_seq.to(torch.float32)
-            projected_teacher_seq = projected_teacher_seq.to(torch.float32)
+            # Ensure mass vectors use the target dtype
+            tea_mass = tea_mass.to(dtype=target_dtype)
+            stu_mass = stu_mass.to(dtype=target_dtype)
             
             # Compute cost matrix based on specified distance metric
             if self.ot_dist_type == 'euclidean':
@@ -335,25 +375,31 @@ class OT_PRO(STSLoss):
             else:
                 raise ValueError(f"Unknown distance type: {self.ot_dist_type}")
             
-            # Ensure cost matrix is in float32 for numerical stability
-            cost_matrix = cost_matrix.to(torch.float32)
+            # Ensure cost matrix uses the target dtype
+            cost_matrix = cost_matrix.to(dtype=target_dtype)
             
             # Check dimensions
             if tea_mass.size(0) != cost_matrix.size(1) or stu_mass.size(0) != cost_matrix.size(0):
                 # Reshape tea_mass and stu_mass to match cost_matrix
-                tea_mass = torch.ones(cost_matrix.size(1), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(1)
-                stu_mass = torch.ones(cost_matrix.size(0), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(0)
-            else:
-                # Convert existing mass vectors to float32
-                tea_mass = tea_mass.to(torch.float32)
-                stu_mass = stu_mass.to(torch.float32)
+                tea_mass = torch.ones(cost_matrix.size(1), 1, device=cost_matrix.device, dtype=target_dtype) / cost_matrix.size(1)
+                stu_mass = torch.ones(cost_matrix.size(0), 1, device=cost_matrix.device, dtype=target_dtype) / cost_matrix.size(0)
             
             # Compute OT plan and loss
-            ot_loss, transport_plan = self.sinkhorn(cost_matrix, stu_mass, tea_mass)
-            total_loss += ot_loss
+            ot_loss, _ = self.sinkhorn(cost_matrix, stu_mass, tea_mass)
+            
+            # Ensure loss has the target dtype
+            ot_loss = ot_loss.to(dtype=target_dtype)
+            
+            total_loss = total_loss + ot_loss
         
-        avg_loss = total_loss / batch_size
-        log["ot_loss"] = avg_loss.item()
+        # Calculate average loss
+        if batch_size > 0:
+            avg_loss = total_loss / batch_size
+        else:
+            avg_loss = total_loss
+            
+        # Store loss value in log (as Python float, not tensor)
+        log["ot_loss"] = avg_loss.detach().item()
         
         return avg_loss, log
     
@@ -375,7 +421,7 @@ class OT_PRO(STSLoss):
         if b.dim() == 1:
             b = b.view(-1, 1)
             
-        # Convert all tensors to the same dtype (use cost_matrix's dtype)
+        # Convert all tensors to the same dtype as cost_matrix
         a = a.to(dtype=dtype)
         b = b.to(dtype=dtype)
         
