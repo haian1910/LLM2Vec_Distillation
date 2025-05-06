@@ -306,9 +306,10 @@ class Distiller(nn.Module):
                 base_model = base_model.merge_and_unload()  # This can take several minutes on cpu
 
                 base_model = PeftModel.from_pretrained(
-                    base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp"
+                    base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
                 )
-
+                base_model = base_model.merge_and_unload()
+                
                 # Wrap the base model with our STS model
                 model = STSModel(base_model)
 
@@ -412,6 +413,7 @@ class Distiller(nn.Module):
         teacher_base_model = PeftModel.from_pretrained(
             teacher_base_model, "McGill-NLP/LLM2Vec-Mistral-7B-Instruct-v2-mntp-unsup-simcse"
         )
+        teacher_base_model = teacher_base_model.merge_and_unload()
 
         def load_peft_model_with_remapped_keys(base_model, teacher_model_path):
             config_path = os.path.join(teacher_model_path, "adapter_config.json")

@@ -3,10 +3,9 @@ from transformers import AutoTokenizer, AutoConfig, AutoModel
 import torch
 import torch.nn as nn
 import re
-from .sts_loss import STSLoss
 
 
-class RMSE_CKA(STSLoss):
+class RMSE_CKA():
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
@@ -22,6 +21,13 @@ class RMSE_CKA(STSLoss):
         self.distiller = distiller
         model = distiller.student_model # BERT
         teacher_model = distiller.teacher_model # LLM2VEC
+
+        with torch.no_grad():
+            teacher_model.eval()
+            teacher_outputs = teacher_model(
+                input_data["teacher_input_ids"],
+                attention_mask=input_data["teacher_attention_mask"],
+                output_hidden_states=True)
 
 
         tokenizer_student = distiller.student_tokenizer
@@ -139,6 +145,7 @@ class RMSE_CKA(STSLoss):
         # Hàm trích xuất top k tokens dựa trên attention của lớp cuối cùng
         def extract_top_k_tokens(text, k):
             # Tiền xử lý văn bản: loại stopwords và dấu câu
+            device = next(teacher_model.parameters()).device
             text = preprocess_text(text)
 
             # Load model và tokenizer
@@ -148,11 +155,12 @@ class RMSE_CKA(STSLoss):
 
             # Tokenize văn bản
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-            inputs = {key: value.to(teacher_model.device) for key, value in inputs.items()}
+            inputs = {key: value.to(device) for key, value in inputs.items()}
 
             # Lấy output và attention weights
             with torch.no_grad():
-                outputs = teacher_model(**inputs,
+                teacher_base_model = teacher_model.base_model
+                outputs = teacher_base_model(**inputs,
                 output_hidden_states=True,
                 output_attentions=True)
 
@@ -214,18 +222,37 @@ class RMSE_CKA(STSLoss):
         def compute_att_loss_1(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
-            device = teacher_model.device
+            device = next(teacher_model.parameters()).device
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
+            teacher_base_model = teacher_model.base_model
+            student_base_model = student_model.base_model
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
+
 
             # Duyệt qua từng sample trong batch
             for i in range(batch_size):
@@ -249,8 +276,17 @@ class RMSE_CKA(STSLoss):
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping)
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+                teacher_outputs = teacher_base_model(
+                    input_ids=input_ids_teacher, 
+                    attention_mask=attention_mask_teacher, 
+                    output_attentions=True
+                )
+                
+                student_outputs = student_base_model(
+                    input_ids=input_ids_student, 
+                    attention_mask=attention_mask_student, 
+                    output_attentions=True
+                )
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -290,20 +326,38 @@ class RMSE_CKA(STSLoss):
 
             return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 4) # define lại batches 
+        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
-            device = teacher_model.device
+            device = next(teacher_model.parameters()).device
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
+            teacher_base_model = teacher_model.base_model
+            student_base_model = student_model.base_model
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
             # Duyệt qua từng sample trong batch
@@ -327,8 +381,17 @@ class RMSE_CKA(STSLoss):
                 # print('Lấy xong mapping')
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+                teacher_outputs = teacher_base_model(
+                    input_ids=input_ids_teacher, 
+                    attention_mask=attention_mask_teacher, 
+                    output_attentions=True
+                )
+                
+                student_outputs = student_base_model(
+                    input_ids=input_ids_student, 
+                    attention_mask=attention_mask_student, 
+                    output_attentions=True
+                )
                 # print('Đã chạy mô hình')
 
                 # Lấy attention weights từ outputs
@@ -383,7 +446,7 @@ class RMSE_CKA(STSLoss):
 
             return att_loss_total
     
-        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 4) 
+        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 3) 
         print("rmse_loss:", att_loss_total_1)
         print("cka_loss:", att_loss_total_2)
         
@@ -394,15 +457,16 @@ class RMSE_CKA(STSLoss):
         )
 
         predictions = outputs.scores
-
-        loss_ce = self.compute_sts_loss(
+        loss_mse = nn.MSELoss()
+        loss_ce = loss_mse(
             predictions,
             output_data["labels"],
-        )[0]
+        )
         log = {}
         print("loss_ce:", loss_ce)
         loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
         log["loss"] = loss
+
 
         logging_output = self.record_logging_output(
             logging_output, batch_denom, log
