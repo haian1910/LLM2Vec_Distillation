@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0)
+GPUS=(0, 1, 2, 3, 4, 5)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -19,12 +19,12 @@ BASE_PATH=/content/LLM2Vec_Distillation
 CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
-TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}"
+TEACHER_MODEL_PATH="link checkpoint"
 # data
-DATA_DIR="${BASE_PATH}/data/medical/"
+DATA_DIR="/content/drive/MyDrive/ColabNotebooks/data_distillation/Classification/medical"
 NUM_LABELS=5
 # task
-TASK="uld"
+TASK="rmse_cka"
 # hp
 BATCH_SIZE=4
 LR=0.00001
@@ -38,7 +38,7 @@ MAX_LENGTH=512
 
 # runtime
 PRECISION="bf16"
-CRITERION="universal_logit_distillation"
+CRITERION="rmse_cka"
 KD_OBJ="forward_kl"  # [forward_kl, reverse_kl, js_divergence, skewed_forward_kl, skewed_reverse_kl, adaptive_kl]
 CONFIG="${KD_OBJ}"
 SETTING=criterion=${CRITERION}__${CONFIG}__teacher=${KD_RATE}__kd^temp=${KD_TEMP}__tea^temp=${TEA_TEMP}__epoch=${EPOCH}__bsz=${BATCH_SIZE}x${GRAD_ACC}x${GPUS_PER_NODE}=$((BATCH_SIZE * GRAD_ACC * GPUS_PER_NODE * NNODES))__lr=${LR}
@@ -95,7 +95,6 @@ OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
-
 
 export NCCL_DEBUG=""
 export WANDB_DISABLED=True

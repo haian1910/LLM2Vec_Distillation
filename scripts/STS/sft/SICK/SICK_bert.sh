@@ -16,28 +16,25 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
 
 # model
 BASE_PATH=/content/LLM2Vec_Distillation
-CKPT_NAME="LLM2Vec"
+CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/STS12/"
-NUM_LABELS=77
+DATA_DIR="${BASE_PATH}/data/SICK/"
+NUM_LABELS=9
 # task
 TASK="sft"
 # hp
-BATCH_SIZE=1
+BATCH_SIZE=16
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=1
-EPOCH=1
-LORA_RANK=1
-LORA_ALPHA=1
-LORA_DROPOUT=0.1
+EVAL_BATCH_SIZE=32
+EPOCH=2
 # length
 MAX_LENGTH=128
 # runtime
 PRECISION="bf16"
-CRITERION="sts_loss"
-CONFIG="lora-rank=${LORA_RANK}-alpha=${LORA_ALPHA}-dropout=${LORA_DROPOUT}-${PRECISION}"
+CRITERION="cross_entropy"
+CONFIG="default-${PRECISION}"
 SETTING=criterion=${CRITERION}__${CONFIG}__epoch=${EPOCH}__bsz=${BATCH_SIZE}x${GRAD_ACC}x${GPUS_PER_NODE}=$((BATCH_SIZE * GRAD_ACC * GPUS_PER_NODE * NNODES))__lr=${LR}
 SAVE_PATH="${BASE_PATH}/outputs/${CKPT_NAME}/${TASK}/${SETTING}"
 SAVE_BEST_N_CKPTS=1
@@ -69,17 +66,12 @@ OPTS+=" --lr-decay-style cosine"
 OPTS+=" --weight-decay 1e-2"
 OPTS+=" --clip-grad 1.0"
 OPTS+=" --num-epochs ${EPOCH}"
-OPTS+=" --peft lora"
-OPTS+=" --peft-lora-r ${LORA_RANK}"
-OPTS+=" --peft-lora-alpha ${LORA_ALPHA}"
-OPTS+=" --peft-lora-dropout ${LORA_DROPOUT}"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
-OPTS+=" --do-eval"
-
+OPTS+=" --do-valid"
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
@@ -90,15 +82,13 @@ OPTS+=" --criterion ${CRITERION}"
 OPTS+=" --seed ${SEED}"
 # deepspeed
 OPTS+=" --deepspeed"
-OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
-
-# if [[ $PRECISION == "bf16" ]]; then
-#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-# elif [[ $PRECISION == "fp16" ]]; then
-#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-# elif [[ $PRECISION == "fp32" ]]; then
-#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-# fi
+if [[ $PRECISION == "bf16" ]]; then
+    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
+elif [[ $PRECISION == "fp16" ]]; then
+    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
+elif [[ $PRECISION == "fp32" ]]; then
+    OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
+fi
 
 
 export NCCL_DEBUG=""
@@ -107,7 +97,7 @@ export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/STS/distillation.py ${OPTS}"
 
-echo ${CMD}
 # ${CMD}
-echo ${SAVE_PATH}/train.log
-${CMD} >> ${SAVE_PATH}/train.log 2>&1
+${CMD} \
+>> ${SAVE_PATH}/train.log 2>&1 &
+echo "Training started, logs are being saved to ${SAVE_PATH}/train.log"

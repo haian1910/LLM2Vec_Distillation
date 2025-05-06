@@ -1,5 +1,5 @@
 #! /bin/bash
-GPUS=(0)
+GPUS=(0, 1, 2, 3, 4, 5, 6, 7, 8)
 export CUDA_VISIBLE_DEVICES=$(IFS=,; echo "${GPUS[*]}")
 
 MASTER_ADDR=localhost
@@ -15,30 +15,35 @@ DISTRIBUTED_ARGS="--nproc_per_node $GPUS_PER_NODE \
                   --master_port $MASTER_PORT"
 
 # model
-BASE_PATH=/content/LLM2Vec_Distillation
-CKPT_NAME="LLM2Vec"
+BASE_PATH=/LLM2Vec_Distillation
+CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
+TEACHER_MODEL_NAME="LLM2Vec"
+TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
 DATA_DIR="${BASE_PATH}/data/STS12/"
-NUM_LABELS=77
+NUM_LABELS=5
 # task
-TASK="sft"
+TASK="ot_pro"
 # hp
-BATCH_SIZE=1
+BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=1
-EPOCH=1
-LORA_RANK=1
-LORA_ALPHA=1
-LORA_DROPOUT=0.1
+EVAL_BATCH_SIZE=4
+EPOCH=3
+KD_RATE=0.5
+KD_TEMP=2.0
 # length
 MAX_LENGTH=128
+# distiller
+PROJECTOR_CONFIG_PATH="${BASE_PATH}/configs/projector_config.json"
+PROJECTOR_LR=0.001
 # runtime
 PRECISION="bf16"
-CRITERION="sts_loss"
-CONFIG="lora-rank=${LORA_RANK}-alpha=${LORA_ALPHA}-dropout=${LORA_DROPOUT}-${PRECISION}"
-SETTING=criterion=${CRITERION}__${CONFIG}__epoch=${EPOCH}__bsz=${BATCH_SIZE}x${GRAD_ACC}x${GPUS_PER_NODE}=$((BATCH_SIZE * GRAD_ACC * GPUS_PER_NODE * NNODES))__lr=${LR}
+CRITERION="ot_pro"
+KD_OBJ="forward_kl"  # [forward_kl, reverse_kl, js_divergence, skewed_forward_kl, skewed_reverse_kl, adaptive_kl]
+CONFIG="${KD_OBJ}"
+SETTING=criterion=${CRITERION}__${CONFIG}__teacher=${KD_RATE}__kd^temp=${KD_TEMP}__tea^temp=${TEA_TEMP}__epoch=${EPOCH}__bsz=${BATCH_SIZE}x${GRAD_ACC}x${GPUS_PER_NODE}=$((BATCH_SIZE * GRAD_ACC * GPUS_PER_NODE * NNODES))__lr=${LR}
 SAVE_PATH="${BASE_PATH}/outputs/${CKPT_NAME}/${TASK}/${SETTING}"
 SAVE_BEST_N_CKPTS=1
 # seed
@@ -49,9 +54,12 @@ mkdir -p ${SAVE_PATH}
 OPTS=""
 # model
 OPTS+=" --base-path ${BASE_PATH}"
+OPTS+=" --ckpt-name ${CKPT_NAME}"
 OPTS+=" --model-path ${CKPT_PATH}"
 OPTS+=" --n-gpu ${GPUS_PER_NODE}"
-# OPTS+=" --gradient-checkpointing"
+OPTS+=" --teacher-model-path ${TEACHER_MODEL_PATH}"
+OPTS+=" --teacher-model-fp16"
+OPTS+=" --gradient-checkpointing"
 # data
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 0"
@@ -69,17 +77,19 @@ OPTS+=" --lr-decay-style cosine"
 OPTS+=" --weight-decay 1e-2"
 OPTS+=" --clip-grad 1.0"
 OPTS+=" --num-epochs ${EPOCH}"
-OPTS+=" --peft lora"
-OPTS+=" --peft-lora-r ${LORA_RANK}"
-OPTS+=" --peft-lora-alpha ${LORA_ALPHA}"
-OPTS+=" --peft-lora-dropout ${LORA_DROPOUT}"
+OPTS+=" --kd-rate ${KD_RATE}"
+OPTS+=" --kd-temperature ${KD_TEMP}"
+OPTS+=" --kd-objective ${KD_OBJ}"
+# distiller
+OPTS+=" --projector-lr ${PROJECTOR_LR}"
+OPTS+=" --projector-config-path ${PROJECTOR_CONFIG_PATH}"
+# OPTS+=" --projector-path ${PROJECTOR_PATH}"
 # length
 OPTS+=" --max-length ${MAX_LENGTH}"
 OPTS+=" --max-prompt-length 256"
 # runtime
 OPTS+=" --do-train"
 OPTS+=" --do-eval"
-
 OPTS+=" --save-interval 1"
 OPTS+=" --eval-interval 1"
 OPTS+=" --log-interval 50"
@@ -92,13 +102,6 @@ OPTS+=" --seed ${SEED}"
 OPTS+=" --deepspeed"
 OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_test.json"
 
-# if [[ $PRECISION == "bf16" ]]; then
-#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_bf16.json"
-# elif [[ $PRECISION == "fp16" ]]; then
-#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config.json"
-# elif [[ $PRECISION == "fp32" ]]; then
-#     OPTS+=" --deepspeed_config ${BASE_PATH}/configs/deepspeed/ds_config_fp32.json"
-# fi
 
 
 export NCCL_DEBUG=""
@@ -107,7 +110,5 @@ export TF_CPP_MIN_LOG_LEVEL=3
 export PYTHONPATH=${BASE_PATH}
 CMD="torchrun ${DISTRIBUTED_ARGS} ${BASE_PATH}/STS/distillation.py ${OPTS}"
 
-echo ${CMD}
-# ${CMD}
-echo ${SAVE_PATH}/train.log
-${CMD} >> ${SAVE_PATH}/train.log 2>&1
+${CMD} \
+>> ${SAVE_PATH}/train.log 2>&1 &
