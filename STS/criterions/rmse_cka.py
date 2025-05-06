@@ -335,7 +335,6 @@ class RMSE_CKA(STSLoss):
 
             return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model, input_data, 1) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
@@ -451,9 +450,10 @@ class RMSE_CKA(STSLoss):
                     att_loss_total += cka_loss   
 
             return att_loss_total
-    
+        #att_loss_total_1 = compute_att_loss_1(teacher_model, model, input_data, 1) # define lại batches 
+
         att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 3) 
-        print("rmse_loss:", att_loss_total_1)
+        #print("rmse_loss:", att_loss_total_1)
         print("cka_loss:", att_loss_total_2)
         
         outputs = model(
@@ -470,16 +470,16 @@ class RMSE_CKA(STSLoss):
             # This fixes the warning about different sizes
             predictions = predictions.view_as(output_data["labels"])
             
-        loss_ce = loss_mse(
+        loss_sts = loss_mse(
             predictions,
             output_data["labels"].to(predictions.dtype),  # Convert to same dtype
         )
         
         log = {}
-        print("loss_sts:", loss_ce)
+        print("loss_sts:", loss_sts)
         
         # Ensure all loss components use the same dtype
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2)
+        loss = (1.0 - self.kd_rate) * loss_sts + self.kd_rate * (0.1*att_loss_total_2)
         log["loss"] = loss
 
         logging_output = self.record_logging_output(
