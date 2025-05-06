@@ -3,9 +3,9 @@ from transformers import AutoTokenizer, AutoConfig, AutoModel
 import torch
 import torch.nn as nn
 import re
+from .sts_loss import STSLoss
 
-
-class RMSE_CKA():
+class RMSE_CKA(STSLoss):
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate
@@ -29,7 +29,6 @@ class RMSE_CKA():
                 attention_mask=input_data["teacher_attention_mask"],
                 output_hidden_states=True)
 
-
         tokenizer_student = distiller.student_tokenizer
         tokenizer_teacher = distiller.teacher_tokenizers
 
@@ -40,7 +39,6 @@ class RMSE_CKA():
         }
         
         def preprocess_text(text):
-
             # Remove numbers if specified
             text = re.sub(r'\d+', '', text)
 
@@ -59,9 +57,7 @@ class RMSE_CKA():
                 'i\'d', 'you\'d', 'he\'d', 'she\'d', 'we\'d', 'they\'d', 'i\'ll', 'you\'ll', 'he\'ll',
                 'she\'ll', 'we\'ll', 'they\'ll', 'let\'s', 'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
                 'why\'s', 'how\'s', '.'
-                
             ]
-
 
             words = [word for word in text.split() if word not in stop_words]
             text = ' '.join(words)
@@ -200,17 +196,23 @@ class RMSE_CKA():
             """
             Loss with knowledge distillation.
             """
-            def __init__(self, eps ):
+            def __init__(self, eps):
                 super().__init__()
                 self.eps = eps
             def forward(self, SH, TH): 
+                # Get device and dtype from input tensors
+                device = SH.device
+                dtype = SH.dtype
+                
                 dT = TH.size(-1)
                 dS = SH.size(-1)
-                SH = SH.view(-1,dS).to(SH.device,torch.float64)
-                TH = TH.view(-1,dT).to(SH.device,torch.float64)
+                
+                # Convert to same dtype as the model (bfloat16)
+                SH = SH.view(-1,dS).to(device, dtype)
+                TH = TH.view(-1,dT).to(device, dtype)
                 
                 slen = SH.size(0)
-                        # Dropout on Hidden State Matching
+                # Dropout on Hidden State Matching
                 SH = SH - SH.mean(0, keepdim=True)
                 TH = TH - TH.mean(0, keepdim=True)
                         
@@ -219,10 +221,12 @@ class RMSE_CKA():
                 den2 = torch.norm(TH.t().matmul(TH),'fro') + self.eps
                 
                 return 1 - num/torch.sqrt(den1*den2)
+                
         def compute_att_loss_1(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
             device = next(teacher_model.parameters()).device
+            dtype = next(student_model.parameters()).dtype  # Get the dtype from the model
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
@@ -309,6 +313,11 @@ class RMSE_CKA():
                     # Lấy ma trận attention cho n token
                     teacher_att_for_n_token = teacher_att[0, :, teacher_indices, :][:, :, teacher_indices].mean(dim=0)  # (num_heads, n, n)
                     student_att_for_n_token = student_att[0, :, student_indices, :][:, :, student_indices].mean(dim=0)   # (num_heads, n, n)
+                    
+                    # Convert to the model's dtype
+                    teacher_att_for_n_token = teacher_att_for_n_token.to(dtype)
+                    student_att_for_n_token = student_att_for_n_token.to(dtype)
+                    
                     # Xử lý giá trị nhỏ
                     teacher_att_for_n_token = torch.where(
                         teacher_att_for_n_token <= -1e2,
@@ -326,11 +335,13 @@ class RMSE_CKA():
 
             return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
+        att_loss_total_1 = compute_att_loss_1(teacher_model, model, input_data, 1) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             device = next(teacher_model.parameters()).device
+            dtype = next(student_model.parameters()).dtype  # Get the dtype from the model
+            
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
@@ -376,9 +387,6 @@ class RMSE_CKA():
                 # Lấy reciprocal_mapping top k và các chỉ số tương ứng
                 reciprocal_mapping_top_k = get_top_k_reciprocal_mapping(text)
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping_top_k)
-                # print("Teacher indices (top-k):", teacher_indices)
-                # print("Student indices (top-k):", student_indices)
-                # print('Lấy xong mapping')
 
                 # Chạy mô hình với output_attentions=True
                 teacher_outputs = teacher_base_model(
@@ -392,7 +400,6 @@ class RMSE_CKA():
                     attention_mask=attention_mask_student, 
                     output_attentions=True
                 )
-                # print('Đã chạy mô hình')
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -409,17 +416,19 @@ class RMSE_CKA():
                 # Lấy k layer cuối (k tương ứng với số layer sử dụng để tính loss)
                 teacher_last_k_layers = new_teacher_atts[-k:]
                 student_last_k_layers = student_atts[-k:]
-                # print('Bắt đầu vào vòng lặp tính loss')
 
                 # Lặp qua từng layer trong k layer cuối
                 for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
-                    # print(f"Processing layer với {teacher_att.shape[0]} head(s)")
                     # Lấy ma trận attention cho k token đối với tất cả các token:
                     # - Với teacher: shape (k, t) với t là số token toàn bộ của text theo tokenizer_teacher
                     # - Với student: shape (k, s) với s là số token toàn bộ của text theo tokenizer_student
 
                     teacher_att_for_k_token = teacher_att[0, :, teacher_indices, :].mean(dim=0)  # (k, t)
                     student_att_for_k_token = student_att[0, :, student_indices, :].mean(dim=0)   # (k, s)
+
+                    # Convert to the model's dtype
+                    teacher_att_for_k_token = teacher_att_for_k_token.to(dtype)
+                    student_att_for_k_token = student_att_for_k_token.to(dtype)
 
                     # Xử lý các giá trị attention nhỏ
                     teacher_att_for_k_token = torch.where(
@@ -432,17 +441,14 @@ class RMSE_CKA():
                         torch.zeros_like(student_att_for_k_token).to(device),
                         student_att_for_k_token
                     )
-                    # print("Teacher attention shape (k x t):", teacher_att_for_k_token.shape)
-                    # print("Student attention shape (k x s):", student_att_for_k_token.shape)
 
                     # Khởi tạo CKALoss
                     cka_loss_fn = CKALoss(eps=1e-8).to(device)
 
                     # Tính CKALoss giữa 2 ma trận
                     cka_loss = cka_loss_fn(student_att_for_k_token, teacher_att_for_k_token)
-
                     
-                    att_loss_total  += cka_loss   
+                    att_loss_total += cka_loss   
 
             return att_loss_total
     
@@ -458,19 +464,25 @@ class RMSE_CKA():
 
         predictions = outputs.scores
         loss_mse = nn.MSELoss()
+        
+        # Make sure the dimensions match and use the same dtype
+        if predictions.shape != output_data["labels"].shape:
+            # This fixes the warning about different sizes
+            predictions = predictions.view_as(output_data["labels"])
+            
         loss_ce = loss_mse(
             predictions,
-            output_data["labels"],
+            output_data["labels"].to(predictions.dtype),  # Convert to same dtype
         )
+        
         log = {}
-        print("loss_ce:", loss_ce)
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
+        print("loss_sts:", loss_ce)
+        
+        # Ensure all loss components use the same dtype
+        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2)
         log["loss"] = loss
-
 
         logging_output = self.record_logging_output(
             logging_output, batch_denom, log
         )
         return loss, logging_output
-    
-    
