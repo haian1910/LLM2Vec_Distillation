@@ -20,7 +20,7 @@ CKPT_NAME="bert"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY# data
-DATA_DIR="${BASE_PATH}/data/scitail/"
+DATA_DIR="${BASE_PATH}/data/tomi/"
 NUM_LABELS=2
 # task
 TASK="min_edit"
@@ -33,7 +33,7 @@ EPOCH=3
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
-MAX_LENGTH=512
+MAX_LENGTH=128
 # runtime
 PRECISION="bf16"
 CRITERION="min_edit_dis_kld"
