@@ -22,7 +22,7 @@ criterion_list = {
     "dual_space_kd": DualSpaceKD,
     "dual_space_kd_with_cross_model_attention": DualSpaceKDWithCMA,
     "universal_logit_distillation": UniversalLogitDistillation,
-    # "min_edit_dis_kld": MinEditDisForwardKLD,
+    "min_edit_dis_kld": MinEditDisForwardKLD,
     "uld_att_mined": ULD_ATT_MINED,
     "uld_att_mined_cka": ULD_ATT_MINED_CKA,
     "dskd_cma_att_mined": DSKD_CMA_ATT_MINED,
