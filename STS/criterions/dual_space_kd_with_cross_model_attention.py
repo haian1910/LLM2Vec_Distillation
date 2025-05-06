@@ -19,6 +19,10 @@ class DualSpaceKDWithCMA(STSLoss):
         teacher_model = distiller.teacher_model
         self.distiller = distiller
         
+        # Get model's dtype
+        dtype = next(model.parameters()).dtype
+        device = next(model.parameters()).device
+        
         outputs = model(
             input_data["input_ids"],
             attention_mask=input_data["attention_mask"],
@@ -30,7 +34,9 @@ class DualSpaceKDWithCMA(STSLoss):
         loss_mse = nn.MSELoss()
         
         # STS task uses MSE loss with regression scores
-        loss_ce = loss_mse(predictions, output_data["labels"])
+        # Convert labels to model's dtype
+        labels = output_data["labels"].to(dtype)
+        loss_ce = loss_mse(predictions, labels)
         
         with torch.no_grad():
             teacher_model.eval()
@@ -46,7 +52,8 @@ class DualSpaceKDWithCMA(STSLoss):
         )
         print("dskd_cma_loss:", kd_loss)
         
-        # Combine losses
+        # Combine losses - ensure same dtype
+        kd_loss = kd_loss.to(dtype)
         loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * kd_loss
         log["loss"] = loss
 
@@ -56,8 +63,13 @@ class DualSpaceKDWithCMA(STSLoss):
     def compute_dual_space_kd_loss_with_cma(
         self, outputs, teacher_outputs, input_data, output_data, distiller, log
     ):
+        # Get model dtype and device for consistent type conversion
+        student_dtype = next(distiller.student_model.parameters()).dtype
+        teacher_dtype = next(distiller.teacher_model.parameters()).dtype
+        device = next(distiller.student_model.parameters()).device
+        
         # For STS tasks, target is regression scores: shape [batch_size]
-        target = output_data["labels"]
+        target = output_data["labels"].to(student_dtype)
         
         # For BERT-like models: use [CLS] token (index 0); adjust if needed for other architectures
         hiddens = outputs.hidden_states[-1][:, 0, :]
@@ -87,27 +99,27 @@ class DualSpaceKDWithCMA(STSLoss):
             raise NotImplementedError("Unsupported teacher model architecture for embedding extraction")
 
         # Use input_ids as context for CMA
-        stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).detach()  # [CLS] token embedding
-        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).detach()  # [CLS] token embedding
+        stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).detach()
+        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).detach()
 
         # Normalize teacher embeddings
         norm_tea_input_embeds = tea_input_embeds / (tea_input_embeds.std() + 1e-6)
         norm_teacher_hiddens = teacher_hiddens / (teacher_hiddens.std() + 1e-6)
 
-        # CMA projections
-        stu_q_hiddens = distiller.projectors["query"](stu_input_embeds).float()
-        tea_k_hiddens = norm_tea_input_embeds.float()
+        # CMA projections - keep in original dtype until the end
+        stu_q_hiddens = distiller.projectors["query"](stu_input_embeds)
+        tea_k_hiddens = norm_tea_input_embeds
 
-        stu_v_hiddens = distiller.projectors["s2t"](hiddens).float()
-        tea_v_hiddens = distiller.projectors["t2s"](norm_teacher_hiddens).float()
+        stu_v_hiddens = distiller.projectors["s2t"](hiddens)
+        tea_v_hiddens = distiller.projectors["t2s"](norm_teacher_hiddens)
 
-        # Alignment computation
+        # Alignment computation in student's dtype
         align = stu_q_hiddens.matmul(tea_k_hiddens.transpose(-1, -2))
         align = align / ((hiddens.shape[-1] ** 0.5) + 1e-6)  # Scale by sqrt of hidden size
 
         # Teacher-to-Student (t2s) projection
         t2s_weight = torch.softmax(align, -1)
-        t2s_hiddens = t2s_weight.matmul(tea_v_hiddens).to(hiddens)
+        t2s_hiddens = t2s_weight.matmul(tea_v_hiddens)
 
         # Get scores for STS task
         # For STS task, we need to use the regression head to get scores
@@ -127,7 +139,7 @@ class DualSpaceKDWithCMA(STSLoss):
 
         # Student-to-Teacher (s2t) projection
         s2t_weight = torch.softmax(align.transpose(-1, -2), -1)
-        s2t_hiddens = s2t_weight.matmul(stu_v_hiddens).to(hiddens)
+        s2t_hiddens = s2t_weight.matmul(stu_v_hiddens)
 
         # Get scores for teacher model
         if hasattr(distiller.teacher_model, "score"):
@@ -143,12 +155,17 @@ class DualSpaceKDWithCMA(STSLoss):
         # Use MSE for STS tasks instead of KL divergence
         s2t_kd_loss = nn.MSELoss()(s2t_scores, teacher_outputs.scores)
 
-        # Combine KD losses
+        # Combine KD losses - ensure same dtype for all losses
+        t2s_mse_loss = t2s_mse_loss.to(student_dtype)
+        t2s_kd_loss = t2s_kd_loss.to(student_dtype)  
+        s2t_kd_loss = s2t_kd_loss.to(student_dtype)
+        
         kd_loss = t2s_mse_loss + t2s_kd_loss + s2t_kd_loss
 
         # Compute RMSE (root mean squared error) for logging
-        t2s_rmse = torch.sqrt(nn.MSELoss(reduction='mean')(t2s_scores, target) + 1e-6)
-        s2t_rmse = torch.sqrt(nn.MSELoss(reduction='mean')(s2t_scores, teacher_outputs.scores) + 1e-6)
+        with torch.no_grad():
+            t2s_rmse = torch.sqrt(nn.MSELoss(reduction='mean')(t2s_scores, target) + 1e-6)
+            s2t_rmse = torch.sqrt(nn.MSELoss(reduction='mean')(s2t_scores, teacher_outputs.scores) + 1e-6)
 
         # Logging
         log["t2s_mse_loss"] = t2s_mse_loss
@@ -160,7 +177,10 @@ class DualSpaceKDWithCMA(STSLoss):
 
         return kd_loss, log
 
-    def compute_accuracy(self, logits, labels):
+    def compute_accuracy(self, scores, labels):
         # For STS (regression), use RMSE or other regression metrics instead of accuracy
-        rmse = torch.sqrt(nn.MSELoss(reduction='mean')(logits, labels) + 1e-6)
+        # Ensure both tensors are the same dtype
+        dtype = scores.dtype
+        labels = labels.to(dtype)
+        rmse = torch.sqrt(nn.MSELoss(reduction='mean')(scores, labels) + 1e-6)
         return rmse
