@@ -1,7 +1,7 @@
 import torch
-from .various_divergence import VariousDivergence
+import nn
 
-class DualSpaceKDWithCMA(VariousDivergence):
+class DualSpaceKDWithCMA():
     def __init__(self, args) -> None:
         super().__init__(args)
         self.kd_rate = args.kd_rate  # Ensure kd_rate is initialized
@@ -23,11 +23,11 @@ class DualSpaceKDWithCMA(VariousDivergence):
             attention_mask=input_data["attention_mask"],
             output_hidden_states=True
         )
-        logits = outputs.logits
+        predictions = outputs.scores
         log = {}
-        
+        loss_mse = nn.MSELoss()
         # Cross-entropy loss with ground-truth labels
-        loss = self.compute_sts_loss(outputs.logits, output_data["labels"])[0]
+        loss = loss_mse(predictions, output_data["labels"])
         
         with torch.no_grad():
             teacher_model.eval()
