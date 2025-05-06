@@ -46,10 +46,10 @@ class OT_PRO(STSLoss):
         log = {}
         
         # Compute cross-entropy loss with ground-truth labels
-        loss = self.compute_sts_loss(
+        loss_mse = nn.MSELoss()
+        loss = loss_mse(
             predictions, output_data["labels"]
-        )[0]
-
+        )
         # Teacher forward pass (no gradient)
         with torch.no_grad():
             teacher_model.eval()
