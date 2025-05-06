@@ -14,7 +14,7 @@ class OT_PRO_RMSE_CKA(STSLoss):
         self.stopThr = 1e-9
         self.OT_max_iter = 100
         self.epsilon = 1e-9
-        self.ot_dist_type = 'cosine'
+        self.ot_dist_type = 'attention'
         self.importance_scaling = 0.5
     
     def forward(
@@ -31,11 +31,12 @@ class OT_PRO_RMSE_CKA(STSLoss):
         tokenizer_student = distiller.student_tokenizer
         tokenizer_teacher = distiller.teacher_tokenizers
 
-        # Bản đồ token đặc biệt
+        # Map of special tokens
         TOKENIZER_TO_SPECIAL_TOKEN = {
-            type(tokenizer_teacher): "<s>",  # Token đặc biệt của teacher
-            type(tokenizer_student): "[CLS]"   # Token đặc biệt của student
+            type(tokenizer_teacher): "<s>",  # Teacher special token
+            type(tokenizer_student): "[CLS]"  # Student special token
         }
+        
         # Student forward pass
         outputs = model(
             input_data["input_ids"],
@@ -44,7 +45,30 @@ class OT_PRO_RMSE_CKA(STSLoss):
         )
         predictions = outputs.scores
         log = {}
-
+        
+        # Get the model's dtype (likely bf16)
+        model_dtype = next(model.parameters()).dtype
+        
+        # Ensure predictions and labels have the same shape and dtype
+        # The warning suggests there's a dimensionality mismatch
+        if predictions.dim() != output_data["labels"].dim():
+            if predictions.shape[0] == output_data["labels"].shape[0]:
+                # Make sure labels match predictions dimensions
+                if predictions.dim() > output_data["labels"].dim():
+                    output_data["labels"] = output_data["labels"].unsqueeze(-1)
+                else:
+                    predictions = predictions.squeeze(-1)
+        
+        # Ensure consistent dtype
+        output_data["labels"] = output_data["labels"].to(dtype=model_dtype)
+        predictions = predictions.to(dtype=model_dtype)
+                
+        # Compute cross-entropy loss with ground-truth labels
+        loss_mse = nn.MSELoss()
+        loss = loss_mse(
+            predictions, output_data["labels"]
+        )
+        
         # Teacher forward pass (no gradient)
         with torch.no_grad():
             teacher_model.eval()
@@ -56,7 +80,6 @@ class OT_PRO_RMSE_CKA(STSLoss):
             )
         
         def preprocess_text(text):
-
             # Remove numbers if specified
             text = re.sub(r'\d+', '', text)
 
@@ -75,9 +98,7 @@ class OT_PRO_RMSE_CKA(STSLoss):
                 'i\'d', 'you\'d', 'he\'d', 'she\'d', 'we\'d', 'they\'d', 'i\'ll', 'you\'ll', 'he\'ll',
                 'she\'ll', 'we\'ll', 'they\'ll', 'let\'s', 'that\'s', 'who\'s', 'what\'s', 'here\'s', 'there\'s', 'when\'s', 'where\'s',
                 'why\'s', 'how\'s', '.'
-                
             ]
-
 
             words = [word for word in text.split() if word not in stop_words]
             text = ' '.join(words)
@@ -161,6 +182,7 @@ class OT_PRO_RMSE_CKA(STSLoss):
         # Hàm trích xuất top k tokens dựa trên attention của lớp cuối cùng
         def extract_top_k_tokens(text, k):
             # Tiền xử lý văn bản: loại stopwords và dấu câu
+            device = next(teacher_model.parameters()).device
             text = preprocess_text(text)
 
             # Load model và tokenizer
@@ -170,11 +192,12 @@ class OT_PRO_RMSE_CKA(STSLoss):
 
             # Tokenize văn bản
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-            inputs = {key: value.to(teacher_model.device) for key, value in inputs.items()}
+            inputs = {key: value.to(device) for key, value in inputs.items()}
 
             # Lấy output và attention weights
             with torch.no_grad():
-                outputs = teacher_model(**inputs,
+                teacher_base_model = teacher_model.base_model
+                outputs = teacher_base_model(**inputs,
                 output_hidden_states=True,
                 output_attentions=True)
 
@@ -214,17 +237,23 @@ class OT_PRO_RMSE_CKA(STSLoss):
             """
             Loss with knowledge distillation.
             """
-            def __init__(self, eps ):
+            def __init__(self, eps):
                 super().__init__()
                 self.eps = eps
             def forward(self, SH, TH): 
+                # Get device and dtype from input tensors
+                device = SH.device
+                dtype = SH.dtype
+                
                 dT = TH.size(-1)
                 dS = SH.size(-1)
-                SH = SH.view(-1,dS).to(SH.device,torch.float64)
-                TH = TH.view(-1,dT).to(SH.device,torch.float64)
+                
+                # Convert to same dtype as the model (bfloat16)
+                SH = SH.view(-1,dS).to(device, dtype)
+                TH = TH.view(-1,dT).to(device, dtype)
                 
                 slen = SH.size(0)
-                        # Dropout on Hidden State Matching
+                # Dropout on Hidden State Matching
                 SH = SH - SH.mean(0, keepdim=True)
                 TH = TH - TH.mean(0, keepdim=True)
                         
@@ -233,21 +262,42 @@ class OT_PRO_RMSE_CKA(STSLoss):
                 den2 = torch.norm(TH.t().matmul(TH),'fro') + self.eps
                 
                 return 1 - num/torch.sqrt(den1*den2)
+                
         def compute_att_loss_1(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
             loss_mse = nn.MSELoss()
-            device = teacher_model.device
+            device = next(teacher_model.parameters()).device
+            dtype = next(student_model.parameters()).dtype  # Get the dtype from the model
 
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
+            teacher_base_model = teacher_model.base_model
+            student_base_model = student_model.base_model
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
+
 
             # Duyệt qua từng sample trong batch
             for i in range(batch_size):
@@ -271,8 +321,17 @@ class OT_PRO_RMSE_CKA(STSLoss):
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping)
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
+                teacher_outputs = teacher_base_model(
+                    input_ids=input_ids_teacher, 
+                    attention_mask=attention_mask_teacher, 
+                    output_attentions=True
+                )
+                
+                student_outputs = student_base_model(
+                    input_ids=input_ids_student, 
+                    attention_mask=attention_mask_student, 
+                    output_attentions=True
+                )
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -295,6 +354,11 @@ class OT_PRO_RMSE_CKA(STSLoss):
                     # Lấy ma trận attention cho n token
                     teacher_att_for_n_token = teacher_att[0, :, teacher_indices, :][:, :, teacher_indices].mean(dim=0)  # (num_heads, n, n)
                     student_att_for_n_token = student_att[0, :, student_indices, :][:, :, student_indices].mean(dim=0)   # (num_heads, n, n)
+                    
+                    # Convert to the model's dtype
+                    teacher_att_for_n_token = teacher_att_for_n_token.to(dtype)
+                    student_att_for_n_token = student_att_for_n_token.to(dtype)
+                    
                     # Xử lý giá trị nhỏ
                     teacher_att_for_n_token = torch.where(
                         teacher_att_for_n_token <= -1e2,
@@ -311,19 +375,40 @@ class OT_PRO_RMSE_CKA(STSLoss):
                     att_loss_total += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
 
             return att_loss_total
+
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
-            device = teacher_model.device
+            device = next(teacher_model.parameters()).device
+            dtype = next(student_model.parameters()).dtype  # Get the dtype from the model
+            
             # Lấy tokenizer từ distiller (giả sử đã được định nghĩa trong class)
             tokenizer_student = distiller.student_tokenizer
             tokenizer_teacher = distiller.teacher_tokenizers
 
+            teacher_base_model = teacher_model.base_model
+            student_base_model = student_model.base_model
             # Lấy batch_size từ input_ids
             batch_size = input_data["input_ids"].shape[0]
 
             # Hàm decode input_ids thành văn bản
             def decode_input_ids(tokenizer, input_ids):
+                if torch.is_tensor(input_ids):
+                    # If it's a 2D tensor (batch, sequence_length), take the first item
+                    if input_ids.dim() > 1:
+                        # Extract the first item from the batch
+                        input_ids = input_ids[0].cpu().tolist()
+                    else:
+                        # Convert to list if it's a 1D tensor
+                        input_ids = input_ids.cpu().tolist()
+                
+                # Handle case when input_ids is already a list
+                elif isinstance(input_ids, list):
+                    # If it's a nested list, take the first item
+                    if isinstance(input_ids[0], list):
+                        input_ids = input_ids[0]
+                
+                # Now decode the properly formatted input_ids
                 return tokenizer.decode(input_ids, skip_special_tokens=True)
 
             # Duyệt qua từng sample trong batch
@@ -342,14 +427,19 @@ class OT_PRO_RMSE_CKA(STSLoss):
                 # Lấy reciprocal_mapping top k và các chỉ số tương ứng
                 reciprocal_mapping_top_k = get_top_k_reciprocal_mapping(text)
                 teacher_indices, student_indices = get_indices_from_mapping(text, reciprocal_mapping_top_k)
-                # print("Teacher indices (top-k):", teacher_indices)
-                # print("Student indices (top-k):", student_indices)
-                # print('Lấy xong mapping')
 
                 # Chạy mô hình với output_attentions=True
-                teacher_outputs = teacher_model(input_ids_teacher, attention_mask=attention_mask_teacher, output_attentions=True)
-                student_outputs = student_model(input_ids_student, attention_mask=attention_mask_student, output_attentions=True)
-                # print('Đã chạy mô hình')
+                teacher_outputs = teacher_base_model(
+                    input_ids=input_ids_teacher, 
+                    attention_mask=attention_mask_teacher, 
+                    output_attentions=True
+                )
+                
+                student_outputs = student_base_model(
+                    input_ids=input_ids_student, 
+                    attention_mask=attention_mask_student, 
+                    output_attentions=True
+                )
 
                 # Lấy attention weights từ outputs
                 teacher_atts = teacher_outputs.attentions
@@ -366,17 +456,19 @@ class OT_PRO_RMSE_CKA(STSLoss):
                 # Lấy k layer cuối (k tương ứng với số layer sử dụng để tính loss)
                 teacher_last_k_layers = new_teacher_atts[-k:]
                 student_last_k_layers = student_atts[-k:]
-                # print('Bắt đầu vào vòng lặp tính loss')
 
                 # Lặp qua từng layer trong k layer cuối
                 for teacher_att, student_att in zip(teacher_last_k_layers, student_last_k_layers):
-                    # print(f"Processing layer với {teacher_att.shape[0]} head(s)")
                     # Lấy ma trận attention cho k token đối với tất cả các token:
                     # - Với teacher: shape (k, t) với t là số token toàn bộ của text theo tokenizer_teacher
                     # - Với student: shape (k, s) với s là số token toàn bộ của text theo tokenizer_student
 
                     teacher_att_for_k_token = teacher_att[0, :, teacher_indices, :].mean(dim=0)  # (k, t)
                     student_att_for_k_token = student_att[0, :, student_indices, :].mean(dim=0)   # (k, s)
+
+                    # Convert to the model's dtype
+                    teacher_att_for_k_token = teacher_att_for_k_token.to(dtype)
+                    student_att_for_k_token = student_att_for_k_token.to(dtype)
 
                     # Xử lý các giá trị attention nhỏ
                     teacher_att_for_k_token = torch.where(
@@ -389,31 +481,23 @@ class OT_PRO_RMSE_CKA(STSLoss):
                         torch.zeros_like(student_att_for_k_token).to(device),
                         student_att_for_k_token
                     )
-                    # print("Teacher attention shape (k x t):", teacher_att_for_k_token.shape)
-                    # print("Student attention shape (k x s):", student_att_for_k_token.shape)
 
                     # Khởi tạo CKALoss
                     cka_loss_fn = CKALoss(eps=1e-8).to(device)
 
                     # Tính CKALoss giữa 2 ma trận
                     cka_loss = cka_loss_fn(student_att_for_k_token, teacher_att_for_k_token)
-
                     
-                    att_loss_total  += cka_loss   
+                    att_loss_total += cka_loss   
 
             return att_loss_total
         
-        #att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
+        #att_loss_total_1 = compute_att_loss_1(teacher_model, model, input_data, 1) # define lại batches 
+
         att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 2) 
         #print("rmse_loss:", att_loss_total_1)
         print("cka_loss:", att_loss_total_2)
-
-
-        # Compute cross-entropy loss with ground-truth labels
-        loss = self.compute_sts_loss(
-            predictions, output_data["labels"]
-        )[0]
-
+        
         # Compute distillation loss using optimal transport
         kd_loss, log = self.compute_ot_loss(
             input_data=input_data,
@@ -422,12 +506,17 @@ class OT_PRO_RMSE_CKA(STSLoss):
             attention_mask_student=input_data["attention_mask"],
             attention_mask_teacher=input_data["teacher_attention_mask"],
             log=log,
-            distiller=distiller
+            distiller=distiller,
+            model_dtype=model_dtype  # Pass model_dtype to ensure consistency
         )
-        print("ot_loss:", kd_loss)
-        # Combine losses
-        loss = (1.0 - self.kd_rate) * loss + self.kd_rate *(0.1*att_loss_total_2 + kd_loss)
-        log["loss"] = loss
+        print("ot_pro_loss:", kd_loss)
+        
+        # Combine losses - ensure they're both in the same dtype
+        loss = loss.to(dtype=model_dtype)
+        kd_loss = kd_loss.to(dtype=model_dtype)
+        
+        loss = (1.0 - self.kd_rate) * loss + self.kd_rate * (0.1*att_loss_total_2 + kd_loss)
+        log["loss"] = loss.detach().item()  # Use item() to avoid tensor in log
 
         return loss, logging_output
     
@@ -453,8 +542,12 @@ class OT_PRO_RMSE_CKA(STSLoss):
         dist_mt = 1.0 - attention_weights
         return dist_mt
     
-    def compute_token_importance(self, attention_weights, tokens):
+    def compute_token_importance(self, attention_weights, tokens, dtype=None):
         device = attention_weights.device
+        
+        # Ensure consistent dtype if provided
+        if dtype is not None:
+            attention_weights = attention_weights.to(dtype=dtype)
         
         # Check if attention_weights is 3D (with multiple heads) or 2D (single attention matrix)
         if len(attention_weights.shape) == 3:
@@ -477,26 +570,6 @@ class OT_PRO_RMSE_CKA(STSLoss):
         norm_importance = torch.softmax(token_importance, dim=0)
         
         return norm_importance
-    
-    '''def find_best_mapping(self, x, base_tokens, blending_special, base_special, best_one=True):
-        tmp_x = x.replace(blending_special, base_special)
-        if tmp_x in base_tokens:
-            return tmp_x, tmp_x
-        else:
-            if best_one:
-                best = None
-                best_dist = None
-                for y in base_tokens:
-                    d = editdistance.eval(tmp_x, y)
-                    if best is None or d < best_dist:
-                        best = y
-                        best_dist = d
-                return tmp_x, best
-            else:
-                token_and_distance = [(y, editdistance.eval(tmp_x, y)) for y in base_tokens]
-                min_distance = min(d for _, d in token_and_distance)
-                shortest_distance_tokens = [y for y, d in token_and_distance if d == min_distance]
-                return tmp_x, shortest_distance_tokens'''
 
     def align_tokens(self, teacher_tokens, student_tokens, teacher_special="<s>", student_special="[CLS]"):
         # Create mapping dictionary
@@ -543,7 +616,8 @@ class OT_PRO_RMSE_CKA(STSLoss):
     
     def project_importance(self, teacher_importance, teacher_tokens, student_tokens, mapping):
         device = teacher_importance.device
-        student_importance = torch.zeros(len(student_tokens), device=device)
+        dtype = teacher_importance.dtype
+        student_importance = torch.zeros(len(student_tokens), device=device, dtype=dtype)
         
         # Get valid teacher tokens based on attention mask
         valid_teacher_tokens = teacher_tokens[:teacher_importance.shape[0]]
@@ -579,19 +653,24 @@ class OT_PRO_RMSE_CKA(STSLoss):
         return student_importance
     
     def compute_ot_loss(
-        self, input_data, outputs, teacher_outputs, attention_mask_student, attention_mask_teacher, log, distiller, logits=False
+        self, input_data, outputs, teacher_outputs, attention_mask_student, 
+        attention_mask_teacher, log, distiller, model_dtype=None
     ):
         # Get the last hidden state from both models
         student_features = outputs.hidden_states[-1]  # Shape: (batch_size, seq_len, hidden_dim)
         teacher_features = teacher_outputs.hidden_states[-1]  # Shape: (batch_size, seq_len, hidden_dim)
         
-        # Extract and determine target dtype (float32 for highest precision)
-        target_dtype = torch.float32  # Use a consistent dtype for all tensors
+        # Use model_dtype if provided, otherwise use student_features dtype
+        target_dtype = model_dtype if model_dtype is not None else student_features.dtype
+        
+        # Ensure feature tensors have the correct dtype
+        student_features = student_features.to(dtype=target_dtype)
+        teacher_features = teacher_features.to(dtype=target_dtype)
         
         tokenizer_teacher = distiller.teacher_tokenizers
         tokenizer_student = distiller.student_tokenizer
         batch_size = teacher_features.size(0)
-        total_loss = 0
+        total_loss = torch.tensor(0.0, device=student_features.device, dtype=target_dtype)
         
         # Check if projector exists
         if not hasattr(distiller, 'projectors') or 't2s' not in distiller.projectors:
@@ -607,12 +686,10 @@ class OT_PRO_RMSE_CKA(STSLoss):
             student_input_ids = input_data["input_ids"][b]
             
             # Truncate teacher input_ids to remove padding
-            # Fix for the TypeError: Convert tensor to integer using int() before slicing
             valid_teacher_len = int(attention_mask_teacher[b].sum().item())
             valid_teacher_input_ids = teacher_input_ids[:valid_teacher_len]
             
             # Truncate student input_ids to remove padding
-            # Fix for potential similar error in student input_ids
             valid_student_len = int(attention_mask_student[b].sum().item())
             valid_student_input_ids = student_input_ids[:valid_student_len]
             
@@ -632,12 +709,19 @@ class OT_PRO_RMSE_CKA(STSLoss):
             valid_teacher_seq = teacher_seq[teacher_mask.bool()]  # Shape: (valid_seq_len, hidden_dim)
             valid_student_seq = student_seq[student_mask.bool()]  # Shape: (valid_seq_len, hidden_dim)
             
-            # Project each row of teacher_seq to student space
-            projected_teacher_seq = projector(valid_teacher_seq)  # Now project after pruning
+            # Skip if either sequence is empty
+            if valid_teacher_seq.size(0) == 0 or valid_student_seq.size(0) == 0:
+                continue
+                
+            # Ensure sequences have the target dtype
+            valid_teacher_seq = valid_teacher_seq.to(dtype=target_dtype)
+            valid_student_seq = valid_student_seq.to(dtype=target_dtype)
             
-            # Ensure both tensors are in the same dtype
-            dtype = valid_student_seq.dtype
-            projected_teacher_seq = projected_teacher_seq.to(dtype)
+            # Project each row of teacher_seq to student space
+            projected_teacher_seq = projector(valid_teacher_seq)
+            
+            # Ensure correct dtype after projection
+            projected_teacher_seq = projected_teacher_seq.to(dtype=target_dtype)
             
             # Process attention weights
             if hasattr(teacher_outputs, 'attentions') and teacher_outputs.attentions is not None:
@@ -647,10 +731,16 @@ class OT_PRO_RMSE_CKA(STSLoss):
                 valid_teacher_attention = teacher_attention[:, :valid_teacher_len, :valid_teacher_len]
                 
                 # Compute token importance from teacher attention
-                teacher_importance = self.compute_token_importance(valid_teacher_attention, teacher_tokens[:valid_teacher_len])
+                teacher_importance = self.compute_token_importance(
+                    valid_teacher_attention, 
+                    teacher_tokens[:valid_teacher_len],
+                    dtype=target_dtype
+                )
             else:
                 # Fallback if attentions not available
-                teacher_importance = torch.ones(len(teacher_tokens), device=teacher_seq.device)
+                teacher_importance = torch.ones(len(teacher_tokens), 
+                                              device=teacher_seq.device, 
+                                              dtype=target_dtype)
                 teacher_importance = torch.softmax(teacher_importance, dim=0)
             
             # Create token mapping between teacher and student
@@ -668,12 +758,12 @@ class OT_PRO_RMSE_CKA(STSLoss):
             stu_mass = student_importance.view(-1, 1)  # Column vector
             
             # Ensure mass vectors match sequence lengths
-            # tea_mass = tea_mass[:valid_teacher_seq.size(0)]
-            # stu_mass = stu_mass[:valid_student_seq.size(0)]
+            tea_mass = tea_mass[:valid_teacher_seq.size(0)]
+            stu_mass = stu_mass[:valid_student_seq.size(0)]
             
-            # Convert all tensors to the target dtype (float32) for computation safety
-            valid_student_seq = valid_student_seq.to(torch.float32)
-            projected_teacher_seq = projected_teacher_seq.to(torch.float32)
+            # Ensure mass vectors use the target dtype
+            tea_mass = tea_mass.to(dtype=target_dtype)
+            stu_mass = stu_mass.to(dtype=target_dtype)
             
             # Compute cost matrix based on specified distance metric
             if self.ot_dist_type == 'euclidean':
@@ -685,27 +775,31 @@ class OT_PRO_RMSE_CKA(STSLoss):
             else:
                 raise ValueError(f"Unknown distance type: {self.ot_dist_type}")
             
-            # Ensure cost matrix is in float32 for numerical stability
-            cost_matrix = cost_matrix.to(torch.float32)
+            # Ensure cost matrix uses the target dtype
+            cost_matrix = cost_matrix.to(dtype=target_dtype)
             
             # Check dimensions
-            # if tea_mass.size(0) != cost_matrix.size(1) or stu_mass.size(0) != cost_matrix.size(0):
-            #     # Reshape tea_mass and stu_mass to match cost_matrix
-            #     tea_mass = torch.ones(cost_matrix.size(1), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(1)
-            #     stu_mass = torch.ones(cost_matrix.size(0), 1, device=cost_matrix.device, dtype=torch.float32) / cost_matrix.size(0)
-            # else:
-            #     # Convert existing mass vectors to float32
-            #     tea_mass = tea_mass.to(torch.float32)
-            #     stu_mass = stu_mass.to(torch.float32)
-            tea_mass = tea_mass.to(torch.float32)
-            stu_mass = stu_mass.to(torch.float32)
+            if tea_mass.size(0) != cost_matrix.size(1) or stu_mass.size(0) != cost_matrix.size(0):
+                # Reshape tea_mass and stu_mass to match cost_matrix
+                tea_mass = torch.ones(cost_matrix.size(1), 1, device=cost_matrix.device, dtype=target_dtype) / cost_matrix.size(1)
+                stu_mass = torch.ones(cost_matrix.size(0), 1, device=cost_matrix.device, dtype=target_dtype) / cost_matrix.size(0)
             
             # Compute OT plan and loss
-            ot_loss, transport_plan = self.sinkhorn(cost_matrix, stu_mass, tea_mass)
-            total_loss += ot_loss
+            ot_loss, _ = self.sinkhorn(cost_matrix, stu_mass, tea_mass)
+            
+            # Ensure loss has the target dtype
+            ot_loss = ot_loss.to(dtype=target_dtype)
+            
+            total_loss = total_loss + ot_loss
         
-        avg_loss = total_loss / batch_size
-        log["ot_loss"] = avg_loss.item()
+        # Calculate average loss
+        if batch_size > 0:
+            avg_loss = total_loss / batch_size
+        else:
+            avg_loss = total_loss
+            
+        # Store loss value in log (as Python float, not tensor)
+        log["ot_loss"] = avg_loss.detach().item()
         
         return avg_loss, log
     
@@ -727,7 +821,7 @@ class OT_PRO_RMSE_CKA(STSLoss):
         if b.dim() == 1:
             b = b.view(-1, 1)
             
-        # Convert all tensors to the same dtype (use cost_matrix's dtype)
+        # Convert all tensors to the same dtype as cost_matrix
         a = a.to(dtype=dtype)
         b = b.to(dtype=dtype)
         
