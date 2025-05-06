@@ -276,6 +276,8 @@ class Distiller(nn.Module):
                             key = key.replace("lora_B.weight", "lora_B.default.weight")
                         if "base_model.model.base_model.model" in key:
                             key = key.replace("base_model.model.base_model.model", "base_model.model")
+                        if "base_model.model.layers" in key:
+                            key = key.replace("base_model.model.layers", "base_model.model.model.layers")
                             
                         fixed_checkpoint[key] = value
                     
