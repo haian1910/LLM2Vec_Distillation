@@ -14,7 +14,7 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
         self.stopThr = 1e-9
         self.OT_max_iter = 100
         self.epsilon = 1e-9
-        self.ot_dist_type = 'cosine'
+        self.ot_dist_type = 'attention'
         self.importance_scaling = 0.5
     
     def forward(
