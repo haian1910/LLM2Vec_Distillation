@@ -310,7 +310,7 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
                     # Tính MSE và cộng vào att_loss_total
                     att_loss_total += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
 
-            return att_loss_total
+            return att_loss_total/k
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
@@ -401,7 +401,7 @@ class OT_PRO_RMSE_CKA(CrossEntropyLoss):
                     
                     att_loss_total  += cka_loss   
 
-            return att_loss_total
+            return att_loss_total/k
         
         #att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 3) # define lại batches 
         att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 2) 
