@@ -295,9 +295,9 @@ class RMSE_CKA(CrossEntropyLoss):
                     # Tính MSE và cộng vào att_loss_total
                     att_loss_total += loss_mse(student_att_for_n_token, teacher_att_for_n_token)
 
-            return att_loss_total/k
+            return att_loss_total
 
-        att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 4) # define lại batches 
+        #att_loss_total_1 = compute_att_loss_1(teacher_model, model,input_data, 4) # define lại batches 
             
         def compute_att_loss_2(teacher_model, student_model, input_data, k):
             att_loss_total = 0.0
@@ -388,10 +388,10 @@ class RMSE_CKA(CrossEntropyLoss):
                     
                     att_loss_total  += cka_loss   
 
-            return att_loss_total/k
+            return att_loss_total
     
-        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 4) 
-        print("rmse_loss:", att_loss_total_1)
+        att_loss_total_2 = compute_att_loss_2(teacher_model, model, input_data, 2) 
+        #print("rmse_loss:", att_loss_total_1)
         print("cka_loss:", att_loss_total_2)
         
         outputs = model(
@@ -408,7 +408,7 @@ class RMSE_CKA(CrossEntropyLoss):
         )[0]
         log = {}
         print("loss_ce:", loss_ce)
-        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (att_loss_total_1 + 0.1*att_loss_total_2) # Hàm loss cuối cùng
+        loss = (1.0 - self.kd_rate) * loss_ce + self.kd_rate * (0.1*att_loss_total_2) # Hàm loss cuối cùng
         log["loss"] = loss
 
         accuracy = self.compute_accuracy(
