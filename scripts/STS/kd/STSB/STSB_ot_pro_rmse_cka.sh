@@ -21,7 +21,7 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
-DATA_DIR="${BASE_PATH}/data/SICK/"
+DATA_DIR="${BASE_PATH}/data/STSB/"
 # task
 TASK="ot_pro_rmse_cka"
 # hp
