@@ -21,8 +21,7 @@ CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 TEACHER_MODEL_NAME="LLM2Vec"
 TEACHER_MODEL_PATH="${BASE_PATH}/model_hub/${TEACHER_MODEL_NAME}" # GẮN LINK MODEL CHECKPOINT VÀO ĐÂY
 # data
-DATA_DIR="${BASE_PATH}/data/STS12/"
-NUM_LABELS=5
+DATA_DIR="${BASE_PATH}/data/SICK/"
 # task
 TASK="ot_pro_rmse_cka"
 # hp
@@ -30,7 +29,7 @@ BATCH_SIZE=4
 LR=0.00001
 GRAD_ACC=1
 EVAL_BATCH_SIZE=4
-EPOCH=3
+EPOCH=4
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
@@ -64,7 +63,6 @@ OPTS+=" --gradient-checkpointing"
 OPTS+=" --data-dir ${DATA_DIR}"
 OPTS+=" --num-workers 0"
 OPTS+=" --dev-num 1000"
-OPTS+=" --num-labels ${NUM_LABELS}"
 # task
 OPTS+=" --task ${TASK}"
 # hp
