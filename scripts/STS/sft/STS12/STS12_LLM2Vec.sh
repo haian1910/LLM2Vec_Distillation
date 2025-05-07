@@ -19,7 +19,7 @@ BASE_PATH=/LLM2Vec_Distillation
 CKPT_NAME="LLM2Vec"
 CKPT_PATH="${BASE_PATH}/model_hub/${CKPT_NAME}"
 # data
-DATA_DIR="${BASE_PATH}/data/SICK/"
+DATA_DIR="${BASE_PATH}/data/STS12/"
 # task
 TASK="sft"
 # hp
