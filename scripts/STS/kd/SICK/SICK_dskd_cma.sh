@@ -25,11 +25,11 @@ DATA_DIR="${BASE_PATH}/data/SICK/"
 # task
 TASK="dual_space_kd_with_cross_model_attention"
 # hp
-BATCH_SIZE=4
+BATCH_SIZE=2
 LR=0.00001
 GRAD_ACC=1
-EVAL_BATCH_SIZE=4
-EPOCH=5
+EVAL_BATCH_SIZE=2
+EPOCH=3
 KD_RATE=0.5
 KD_TEMP=2.0
 # length
