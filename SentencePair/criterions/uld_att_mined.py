@@ -144,7 +144,7 @@ class ULD_ATT_MINED(CrossEntropyLoss):
             for i in range(batch_size):
                 # Decode input_ids để lấy văn bản (giả sử teacher và student dùng cùng input)
                 text = decode_input_ids(tokenizer_student, input_data["input_ids"][i])
-                print(f"Processing text: {text}")
+                # print(f"Processing text: {text}")
 
                 # Tiền xử lý văn bản
                 text = preprocess_text(text)

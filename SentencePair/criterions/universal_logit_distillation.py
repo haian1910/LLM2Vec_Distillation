@@ -45,7 +45,7 @@ class UniversalLogitDistillation(CrossEntropyLoss):
         kd_loss, log = self.compute_universal_logit_distillation_loss(
             outputs, teacher_outputs, output_data, distiller, log
         )
-        print("uld_loss:", kd_loss)
+        # print("uld_loss:", kd_loss)
         # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
