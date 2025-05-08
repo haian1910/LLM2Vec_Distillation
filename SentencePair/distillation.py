@@ -160,8 +160,9 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
             if dist.get_rank() == 0:
                 data_iter.set_postfix(loss=loss.item())
 
+        dist.barrier()
 
-        if args.save_dir and (epoch + 1) % args.save_interval == 0: #save_interval = 1 then save each epoch
+        if args.save_dir and (epoch + 1) % args.save_interval == 0 and dist.get_rank() == 0: #save_interval = 1 then save each epoch
             #eval_interval = 1 then evaluate each epoch
             log_rank("Evaluating before saving model...")
             eval_loss, eval_accu, eval_precision, eval_recall = evaluate(args, tokenizer, model.module.student_model, dataset["dev"], "dev", device)
@@ -170,40 +171,39 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
             ckpt_name = "epoch{}_step{}_loss{:.4f}".format(epoch + 1, logging_output["global_step"], eval_loss)
             save_dir_path = os.path.join(args.save_dir, ckpt_name)
             
-            if dist.get_rank() == 0:
-                os.makedirs(save_dir_path, exist_ok=True)
-                if not args.only_save_projector:
-                    log_rank("Saving tokenizer...")
-                    tokenizer.save_pretrained(save_dir_path)
-                    log_rank("Saving model...")
-                    model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
-                    classifier_path = os.path.join(save_dir_path, "classifier_head.bin")
-                    if hasattr(model.module.student_model, 'score'):  # Mistral model
-                        log_rank("Saving Mistral classifier head (score)...")
-                        torch.save(model.module.student_model.score.state_dict(), classifier_path)
-                    elif hasattr(model.module.student_model, 'classifier'):  # BERT model
-                        log_rank("Saving BERT classifier head (classifier)...")
-                        torch.save(model.module.student_model.classifier.state_dict(), classifier_path)
-                    else:
-                        log_rank("Warning: Could not identify classifier head structure, no classifier saved.")
-                    log_rank("Saving config")
-                    model.module.student_model.config.save_pretrained(save_dir_path)
-                if hasattr(model.module, "projectors"):
-                    log_rank("Saving projector...")
-                    torch.save(
-                        model.module.projectors.state_dict(), 
-                        os.path.join(save_dir_path, "projector.pt")
-                    )
-                
-                model_list.append({"path": save_dir_path, "score": eval_accu}) #store model list in term of eval_loss
-                model_list = sorted(model_list, key=lambda x: x["score"], reverse=False)
-                
-                if len(model_list) > args.keep_best_n_checkpoints:
-                    removed_model = model_list.pop(0)
-                    shutil.rmtree(removed_model["path"])
+            os.makedirs(save_dir_path, exist_ok=True)
+            if not args.only_save_projector:
+                log_rank("Saving tokenizer...")
+                tokenizer.save_pretrained(save_dir_path)
+                log_rank("Saving model...")
+                model.module.student_model.save_pretrained(save_dir_path, safe_serialization=False)
+                classifier_path = os.path.join(save_dir_path, "classifier_head.bin")
+                if hasattr(model.module.student_model, 'score'):  # Mistral model
+                    log_rank("Saving Mistral classifier head (score)...")
+                    torch.save(model.module.student_model.score.state_dict(), classifier_path)
+                elif hasattr(model.module.student_model, 'classifier'):  # BERT model
+                    log_rank("Saving BERT classifier head (classifier)...")
+                    torch.save(model.module.student_model.classifier.state_dict(), classifier_path)
+                else:
+                    log_rank("Warning: Could not identify classifier head structure, no classifier saved.")
+                log_rank("Saving config")
+                model.module.student_model.config.save_pretrained(save_dir_path)
+            if hasattr(model.module, "projectors"):
+                log_rank("Saving projector...")
+                torch.save(
+                    model.module.projectors.state_dict(), 
+                    os.path.join(save_dir_path, "projector.pt")
+                )
+            
+            model_list.append({"path": save_dir_path, "score": eval_accu}) #store model list in term of eval_loss
+            model_list = sorted(model_list, key=lambda x: x["score"], reverse=False)
+            
+            if len(model_list) > args.keep_best_n_checkpoints:
+                removed_model = model_list.pop(0)
+                shutil.rmtree(removed_model["path"])
 
-                log_rank(f"Model has been saved to {save_dir_path}")
-            dist.barrier()
+            log_rank(f"Model has been saved to {save_dir_path}")
+        
             
     total_seconds = time.time() - start_time
     log_rank("Done training in {:0>2}:{:0>2}:{:0>2}".format(
@@ -214,23 +214,12 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
 
 @torch.no_grad
 def evaluate(args, tokenizer, student_model, dataset, split, device):
-    dp_world_size = dist.get_world_size()
-    dp_rank = dist.get_rank()
-    dp_group = None
+    if dist.get_rank() != 0:
+        return None, None, None, None        
 
-    if dist.get_rank() == 0:
-        print(f"Evaluating on {split} set with {dp_world_size} GPU(s)")
-        
-    sampler = DistributedSampler(
-        dataset,
-        shuffle=False,
-        drop_last=False,
-        rank=dp_rank,
-        num_replicas=dp_world_size
-    )
     dataloader = DataLoader(
         dataset,
-        sampler=sampler,
+        shuffle=False,
         batch_size=args.eval_batch_size,
         num_workers=args.num_workers,
         collate_fn=dataset.collate
@@ -245,9 +234,9 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
 
     all_preds = []
     all_labels = []
-    local_loss = 0
+    total_loss = 0
     for input_batch, output_batch in tqdm(dataloader, desc="Processing batches"):
-        
+
         dataset.move_to_device([input_batch, output_batch], device)
         labels = output_batch["labels"]       
         outputs = student_model(
@@ -264,40 +253,24 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
         all_preds.append(preds)
         all_labels.append(labels)
         sample_num = labels.size(0)
-        local_loss += loss
+        total_loss += loss
 
         eval_info["sample_num"] += sample_num
         eval_info["correct_samples"] += correct
 
-        
-    all_preds = torch.cat(all_preds, dim=0)
-    all_labels = torch.cat(all_labels, dim=0)
+    all_preds = torch.cat(all_preds, dim=0).cpu().numpy()
+    all_labels = torch.cat(all_labels, dim=0).cpu().numpy()
 
+    precision = precision_score(all_labels, all_preds, average='macro')
+    recall = recall_score(all_labels, all_preds, average='macro')
+    accuracy = (all_preds == all_labels).sum() / len(all_labels)
+    avg_loss = total_loss / len(all_labels)
 
-    all_preds_gathered = [torch.zeros_like(all_preds) for _ in range(dp_world_size)]
-    all_labels_gathered = [torch.zeros_like(all_labels) for _ in range(dp_world_size)]
-    
-    dist.all_gather(all_preds_gathered, all_preds, group=dp_group)
-    dist.all_gather(all_labels_gathered, all_labels, group=dp_group)
-   
-    all_dp_loss = [torch.zeros_like(local_loss) for _ in range(dp_world_size)]
-    dist.all_gather(all_dp_loss, local_loss, group=dp_group)
-
-    all_dp_loss = sum(all_dp_loss).item()
-
-    all_preds = torch.cat(all_preds_gathered, dim=0)
-    all_labels = torch.cat(all_labels_gathered, dim=0)
-
-    all_preds_np = all_preds.cpu().numpy()
-    all_labels_np = all_labels.cpu().numpy()
-
-    precision = precision_score(all_labels_np, all_preds_np, average='macro')
-    recall = recall_score(all_labels_np, all_preds_np, average='macro')
 
     eval_info["precision"] = round(precision, 6)
     eval_info["recall"] = round(recall, 6)
 
-    eval_info["loss"] = all_dp_loss / len(all_preds)
+    eval_info["loss"] = avg_loss
     eval_info["accuracy"] = (all_preds==all_labels).sum().item() / len(all_preds)
     eval_info["sample_num"] = len(all_preds)
     eval_info["correct_samples"] = (all_preds==all_labels).sum().item()
@@ -306,8 +279,7 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
         if isinstance(eval_info[key], float):
             eval_info[key] = round(eval_info[key], 6)
     
-    if dist.get_rank() == 0:
-        print(f"Evaluated: {split} | {eval_info}")
+    print(f"Evaluated: {split} | {eval_info}")
 
     student_model.train()
 
