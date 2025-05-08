@@ -214,23 +214,12 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
 
 @torch.no_grad
 def evaluate(args, tokenizer, student_model, dataset, split, device):
-    dp_world_size = dist.get_world_size()
-    dp_rank = dist.get_rank()
-    dp_group = None
+    if dist.get_rank() != 0:
+        return None, None, None, None        
 
-    if dist.get_rank() == 0:
-        print(f"Evaluating on {split} set with {dp_world_size} GPU(s)")
-        
-    sampler = DistributedSampler(
-        dataset,
-        shuffle=False,
-        drop_last=False,
-        rank=dp_rank,
-        num_replicas=dp_world_size
-    )
     dataloader = DataLoader(
         dataset,
-        sampler=sampler,
+        shuffle=False,
         batch_size=args.eval_batch_size,
         num_workers=args.num_workers,
         collate_fn=dataset.collate
@@ -245,9 +234,9 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
 
     all_preds = []
     all_labels = []
-    local_loss = 0
+    total_loss = 0
     for input_batch, output_batch in tqdm(dataloader, desc="Processing batches"):
-        
+
         dataset.move_to_device([input_batch, output_batch], device)
         labels = output_batch["labels"]       
         outputs = student_model(
@@ -264,40 +253,24 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
         all_preds.append(preds)
         all_labels.append(labels)
         sample_num = labels.size(0)
-        local_loss += loss
+        total_loss += loss
 
         eval_info["sample_num"] += sample_num
         eval_info["correct_samples"] += correct
 
-        
-    all_preds = torch.cat(all_preds, dim=0)
-    all_labels = torch.cat(all_labels, dim=0)
+    all_preds = torch.cat(all_preds, dim=0).cpu().numpy()
+    all_labels = torch.cat(all_labels, dim=0).cpu().numpy()
 
+    precision = precision_score(all_labels, all_preds, average='macro')
+    recall = recall_score(all_labels, all_preds, average='macro')
+    accuracy = (all_preds == all_labels).sum() / len(all_labels)
+    avg_loss = total_loss / len(all_labels)
 
-    all_preds_gathered = [torch.zeros_like(all_preds) for _ in range(dp_world_size)]
-    all_labels_gathered = [torch.zeros_like(all_labels) for _ in range(dp_world_size)]
-    
-    dist.all_gather(all_preds_gathered, all_preds, group=dp_group)
-    dist.all_gather(all_labels_gathered, all_labels, group=dp_group)
-   
-    all_dp_loss = [torch.zeros_like(local_loss) for _ in range(dp_world_size)]
-    dist.all_gather(all_dp_loss, local_loss, group=dp_group)
-
-    all_dp_loss = sum(all_dp_loss).item()
-
-    all_preds = torch.cat(all_preds_gathered, dim=0)
-    all_labels = torch.cat(all_labels_gathered, dim=0)
-
-    all_preds_np = all_preds.cpu().numpy()
-    all_labels_np = all_labels.cpu().numpy()
-
-    precision = precision_score(all_labels_np, all_preds_np, average='macro')
-    recall = recall_score(all_labels_np, all_preds_np, average='macro')
 
     eval_info["precision"] = round(precision, 6)
     eval_info["recall"] = round(recall, 6)
 
-    eval_info["loss"] = all_dp_loss / len(all_preds)
+    eval_info["loss"] = avg_loss
     eval_info["accuracy"] = (all_preds==all_labels).sum().item() / len(all_preds)
     eval_info["sample_num"] = len(all_preds)
     eval_info["correct_samples"] = (all_preds==all_labels).sum().item()
@@ -306,8 +279,7 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
         if isinstance(eval_info[key], float):
             eval_info[key] = round(eval_info[key], 6)
     
-    if dist.get_rank() == 0:
-        print(f"Evaluated: {split} | {eval_info}")
+    print(f"Evaluated: {split} | {eval_info}")
 
     student_model.train()
 

@@ -206,23 +206,13 @@ def finetune(args, tokenizer: AutoTokenizer, model: deepspeed.DeepSpeedEngine, o
 
 @torch.no_grad()
 def evaluate(args, tokenizer, student_model, dataset, split, device):
-    dp_world_size = dist.get_world_size()
-    dp_rank = dist.get_rank()
-    dp_group = None
-
-    if dist.get_rank() == 0:
-        print(f"Evaluating on {split} set with {dp_world_size} GPU(s)")
-        
-    sampler = DistributedSampler(
-        dataset,
-        shuffle=False,
-        drop_last=False,
-        rank=dp_rank,
-        num_replicas=dp_world_size
-    )
+    if dist.get_rank() != 0:
+        return None, None, None, None        
+    
+    # Use regular DataLoader without DistributedSampler
     dataloader = DataLoader(
         dataset,
-        sampler=sampler,
+        shuffle=False,
         batch_size=args.eval_batch_size,
         num_workers=args.num_workers,
         collate_fn=dataset.collate
@@ -236,7 +226,7 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
 
     all_preds = []
     all_targets = []
-    local_loss = 0
+    total_loss = 0
     
     for input_batch, output_batch in tqdm(dataloader, desc="Processing batches"):
         dataset.move_to_device([input_batch, output_batch], device)
@@ -255,27 +245,14 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
         all_preds.append(predictions)
         all_targets.append(targets)
         sample_num = targets.size(0)
-        local_loss += loss * sample_num  # Scale loss by batch size for proper averaging
+        total_loss += loss.item() * sample_num  # Scale loss by batch size for proper averaging
 
         eval_info["sample_num"] += sample_num
         
     all_preds = torch.cat(all_preds, dim=0)
     all_targets = torch.cat(all_targets, dim=0)
 
-    # Gather predictions and targets from all processes
-    all_preds_gathered = [torch.zeros_like(all_preds) for _ in range(dp_world_size)]
-    all_targets_gathered = [torch.zeros_like(all_targets) for _ in range(dp_world_size)]
-    
-    dist.all_gather(all_preds_gathered, all_preds, group=dp_group)
-    dist.all_gather(all_targets_gathered, all_targets, group=dp_group)
-   
-    all_dp_loss = [torch.zeros_like(local_loss) for _ in range(dp_world_size)]
-    dist.all_gather(all_dp_loss, local_loss, group=dp_group)
-
-    all_dp_loss = sum(all_dp_loss).item()
-
-    all_preds = torch.cat(all_preds_gathered, dim=0)
-    all_targets = torch.cat(all_targets_gathered, dim=0)
+    # No need for gathering across processes
 
     # Convert to float32 before converting to numpy (BFloat16 is not supported by numpy)
     all_preds = all_preds.to(torch.float32)
@@ -290,12 +267,12 @@ def evaluate(args, tokenizer, student_model, dataset, split, device):
     spearman_correlation, _ = spearmanr(all_preds_np, all_targets_np)
     
     # Update evaluation info
-    eval_info["loss"] = float(all_dp_loss / eval_info["sample_num"])
+    eval_info["loss"] = float(total_loss / eval_info["sample_num"])
     eval_info["pearson"] = round(float(pearson_correlation), 6)
     eval_info["spearman"] = round(float(spearman_correlation), 6)
     eval_info["mse"] = round(float(((all_preds_np - all_targets_np) ** 2).mean()), 6)
 
-    if dist.get_rank() == 0:
+    if hasattr(args, 'local_rank') and args.local_rank == 0 or not hasattr(args, 'local_rank'):
         print(f"Evaluated: {split} | {eval_info}")
 
     student_model.train()
