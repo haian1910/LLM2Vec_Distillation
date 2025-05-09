@@ -41,7 +41,7 @@ class DualSpaceKDWithCMA(VariousDivergence):
         kd_loss, log = self.compute_dual_space_kd_loss_with_cma(
             outputs, teacher_outputs, input_data, output_data, distiller, log
         )
-        print("dskd_cma_loss:", kd_loss)
+        
         # Combine losses
         loss = (1.0 - self.kd_rate) * loss + self.kd_rate * kd_loss
         log["loss"] = loss
@@ -87,8 +87,9 @@ class DualSpaceKDWithCMA(VariousDivergence):
             raise NotImplementedError("Unsupported teacher model architecture for embedding extraction")
 
         # Use input_ids as context for CMA (no padding_id needed for classification)
-        stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).detach()  # [CLS] token embedding
-        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).detach()  # [CLS] token embedding
+        # Extract just the CLS token embedding from the first position
+        stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).squeeze(1).detach()
+        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).squeeze(1).detach()
 
         # Normalize teacher embeddings
         norm_tea_input_embeds = tea_input_embeds / tea_input_embeds.std()
@@ -110,6 +111,7 @@ class DualSpaceKDWithCMA(VariousDivergence):
         t2s_hiddens = t2s_weight.matmul(tea_v_hiddens).to(hiddens)
 
         # Use appropriate classification head for student
+        t2s_logits = None
         if hasattr(distiller.student_model, "classifier"):
             t2s_logits = distiller.student_model.classifier(t2s_hiddens)
         elif hasattr(distiller.student_model, "score"):
@@ -126,10 +128,19 @@ class DualSpaceKDWithCMA(VariousDivergence):
         s2t_hiddens = s2t_weight.matmul(stu_v_hiddens).to(hiddens)
 
         # Use appropriate classification head for teacher
-        if hasattr(distiller.teacher_model, "classifier"):
-            s2t_logits = distiller.teacher_model.classifier(s2t_hiddens)
-        elif hasattr(distiller.teacher_model, "score"):
-            s2t_logits = distiller.teacher_model.score(s2t_hiddens)
+        # BGE model specific handling
+        s2t_logits = None
+        if hasattr(teacher_model, "score"):
+            # BGE model typically has a score module
+            s2t_logits = teacher_model.score(s2t_hiddens)
+        elif hasattr(teacher_model, "classifier"):
+            # Check if classifier expects [batch_size, hidden_size] or [batch_size, seq_len, hidden_size]
+            try:
+                s2t_logits = teacher_model.classifier(s2t_hiddens)
+            except IndexError:
+                # If classifier expects 3D input but we have 2D, add a dummy sequence dimension
+                s2t_hiddens_3d = s2t_hiddens.unsqueeze(1)  # [batch_size, 1, hidden_size]
+                s2t_logits = teacher_model.classifier(s2t_hiddens_3d)
         else:
             raise AttributeError("Teacher model has neither 'classifier' nor 'score' attribute")
 
