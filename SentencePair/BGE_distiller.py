@@ -220,9 +220,9 @@ class Distiller(nn.Module):
         tokenizer = self.load_tokenizer("BAAI/bge-m3")
 
         if hasattr(config, "n_embed"):
-            self.hidden_size = config.n_embed
+            self.teacher_hidden_size = config.n_embed
         else:
-            self.hidden_size = config.hidden_size
+            self.teacher_hidden_size = config.hidden_size
 
         config.num_labels = self.args.num_labels
         model = AutoModelForSequenceClassification.from_pretrained(
