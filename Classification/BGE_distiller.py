@@ -169,24 +169,17 @@ class Distiller(nn.Module):
                 if model.config.pad_token_id is None:
                     model.config.pad_token_id = tokenizer.pad_token_id
 
-                # Apply LoRA adapter for fine-tuning
+                # For full fine-tuning, we don't need PEFT/LoRA
                 if self.args.do_train:
-                    peft_config = LoraConfig(
-                        task_type=TaskType.SEQ_CLS,  # Using SEQ_CLS for classification tasks
-                        inference_mode=(not self.args.do_train),
-                        r=self.args.peft_lora_r,
-                        lora_alpha=self.args.peft_lora_alpha,
-                        lora_dropout=self.args.peft_lora_dropout,
-                        # Adjust target modules based on BGE-M3 architecture
-                        target_modules=[
-                            "query_proj", "key_proj", "value_proj", "output_proj", 
-                            "fc1", "fc2"  # Adjust these based on BGE-M3's architecture
-                        ]
-                    )
-                    model = get_peft_model(model, peft_config)
+                    # Make sure all parameters are trainable for full fine-tuning
+                    for param in model.parameters():
+                        param.requires_grad = True
+                    
+                    # Calculate and print trainable parameters info
                     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
                     all_params = sum(p.numel() for p in model.parameters())
                     print(f"Trainable parameters: {trainable_params}/{all_params} ({trainable_params/all_params:.2%})")
+
             else:
                 raise NotImplementedError
         else: #for BERT
@@ -216,97 +209,66 @@ class Distiller(nn.Module):
 
         return model, tokenizer
     
-def load_teacher_model(self):
-    log_rank("Loading teacher model...")
-    config = AutoConfig.from_pretrained(
-        "BAAI/bge-m3",
-        trust_remote_code=True
-    )
-    config.is_model_parallel = False
+    def load_model(self):
+        log_rank("Loading model for full fine-tuning...")
+        config = AutoConfig.from_pretrained(
+            "BAAI/bge-m3",
+            trust_remote_code=True
+        )
+        config.is_model_parallel = False
 
-    tokenizer = self.load_tokenizer("BAAI/bge-m3")
+        tokenizer = self.load_tokenizer("BAAI/bge-m3")
 
-    if hasattr(config, "n_embed"):
-        self.teacher_hidden_size = config.n_embed
-    else:
-        self.teacher_hidden_size = config.hidden_size
-
-    config.num_labels = self.args.num_labels
-    teacher_model = AutoModelForSequenceClassification.from_pretrained(
-        "BAAI/bge-m3",
-        config=config,
-        device_map=None,
-        torch_dtype=self.dtype,
-        trust_remote_code=True,
-    )
-    
-    # Set pad token ID if needed
-    if teacher_model.config.pad_token_id is None:
-        teacher_model.config.pad_token_id = tokenizer.pad_token_id
-    
-    # Load fine-tuned weights if available
-    if hasattr(self.args, 'teacher_model_path') and self.args.teacher_model_path:
-        # Check if it's a PEFT model
-        adapter_path = os.path.join(self.args.teacher_model_path, "adapter_model.bin")
-        if os.path.exists(adapter_path):
-            # It's a PEFT model
-            fixed_adapter_path = adapter_path + ".fixed"
-            if not os.path.exists(fixed_adapter_path):
-                if dist.get_rank() == 0:
-                    # Load the checkpoint and fix the keys if needed
-                    checkpoint = torch.load(adapter_path)            
-                    fixed_checkpoint = {}
-                    
-                    for key, value in checkpoint.items():
-                        if "lora_A.weight" in key and "default" not in key:
-                            key = key.replace("lora_A.weight", "lora_A.default.weight")
-                        if "lora_B.weight" in key and "default" not in key:
-                            key = key.replace("lora_B.weight", "lora_B.default.weight")
-                        if "base_model.model.base_model.model" in key:
-                            key = key.replace("base_model.model.base_model.model", "base_model.model")
-                            
-                        fixed_checkpoint[key] = value
-                    
-                    # Save the fixed checkpoint back to a new file
-                    if fixed_checkpoint: 
-                        torch.save(fixed_checkpoint, fixed_adapter_path)
-            
-            dist.barrier()  
-            
-            teacher_model = PeftModel.from_pretrained(
-                teacher_model,
-                self.args.teacher_model_path,
-                adapter_name="default",
-                adapter_weights_path=fixed_adapter_path
-            )
+        if hasattr(config, "n_embed"):
+            self.hidden_size = config.n_embed
         else:
-            # If not adapter model, try to load the full model weights
-            model_path = os.path.join(self.args.teacher_model_path, "pytorch_model.bin")
+            self.hidden_size = config.hidden_size
+
+        config.num_labels = self.args.num_labels
+        model = AutoModelForSequenceClassification.from_pretrained(
+            "BAAI/bge-m3",
+            config=config,
+            device_map=None,
+            torch_dtype=self.dtype,
+            trust_remote_code=True,
+        )
+        
+        # Set pad token ID if needed
+        if model.config.pad_token_id is None:
+            model.config.pad_token_id = tokenizer.pad_token_id
+        
+        # Check if we should load pre-trained weights before fine-tuning
+        if hasattr(self.args, 'pretrained_model_path') and self.args.pretrained_model_path:
+            # Try to load the full model weights
+            model_path = os.path.join(self.args.pretrained_model_path, "pytorch_model.bin")
             if os.path.exists(model_path):
-                log_rank("Loading full model weights from trained model...")
+                log_rank("Loading pretrained weights before fine-tuning...")
                 model_state_dict = torch.load(model_path, map_location="cpu")
-                teacher_model.load_state_dict(model_state_dict, strict=False)
+                model.load_state_dict(model_state_dict, strict=False)
 
-    # Try to load classifier head if available
-    classifier_path = os.path.join(self.args.teacher_model_path, "classifier_head.bin")
-    if os.path.exists(classifier_path):
-        log_rank("Loading classifier head from trained model...")
-        classifier_state_dict = torch.load(classifier_path, map_location="cpu")
-        # Check if the model has a score attribute or classifier attribute
-        if hasattr(teacher_model, "score"):
-            teacher_model.score.load_state_dict(classifier_state_dict)
-        elif hasattr(teacher_model, "classifier"):
-            teacher_model.classifier.load_state_dict(classifier_state_dict)
-        else:
-            log_rank("Warning: Model does not have a recognized classifier attribute. Classifier head not loaded.")
-    else:
-        log_rank("No classifier head found in teacher model path. Using default classifier.")
-    
-    # Freeze all parameters
-    for param in teacher_model.parameters():
-        param.requires_grad = False
-    
-    return teacher_model, tokenizer
+            # Try to load classifier head if available
+            classifier_path = os.path.join(self.args.pretrained_model_path, "classifier_head.bin")
+            if os.path.exists(classifier_path):
+                log_rank("Loading classifier head...")
+                classifier_state_dict = torch.load(classifier_path, map_location="cpu")
+                # Check if the model has a score attribute or classifier attribute
+                if hasattr(model, "score"):
+                    model.score.load_state_dict(classifier_state_dict)
+                elif hasattr(model, "classifier"):
+                    model.classifier.load_state_dict(classifier_state_dict)
+                else:
+                    log_rank("Warning: Model does not have a recognized classifier attribute. Classifier head not loaded.")
+        
+        # Make all parameters trainable for full fine-tuning
+        for param in model.parameters():
+            param.requires_grad = True
+            
+        # Calculate and print trainable parameters info
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        all_params = sum(p.numel() for p in model.parameters())
+        log_rank(f"Trainable parameters: {trainable_params}/{all_params} ({trainable_params/all_params:.2%})")
+        
+        return model, tokenizer
     
     def add_optimizer_param_group(self, optimizer):
         if hasattr(self, "projectors"):
