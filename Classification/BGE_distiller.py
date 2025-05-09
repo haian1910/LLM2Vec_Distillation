@@ -209,7 +209,7 @@ class Distiller(nn.Module):
 
         return model, tokenizer
     
-    def load_model(self):
+    def load_teacher_model(self):
         log_rank("Loading model for full fine-tuning...")
         config = AutoConfig.from_pretrained(
             "BAAI/bge-m3",
@@ -261,7 +261,7 @@ class Distiller(nn.Module):
         
         # Make all parameters trainable for full fine-tuning
         for param in model.parameters():
-            param.requires_grad = True
+            param.requires_grad = False
             
         # Calculate and print trainable parameters info
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
