@@ -210,7 +210,7 @@ class Distiller(nn.Module):
         return model, tokenizer
     
     def load_teacher_model(self):
-        log_rank("Loading model for full fine-tuning...")
+        log_rank("Loading teacher model")
         config = AutoConfig.from_pretrained(
             "BAAI/bge-m3",
             trust_remote_code=True
@@ -262,11 +262,6 @@ class Distiller(nn.Module):
         # Make all parameters trainable for full fine-tuning
         for param in model.parameters():
             param.requires_grad = False
-            
-        # Calculate and print trainable parameters info
-        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        all_params = sum(p.numel() for p in model.parameters())
-        log_rank(f"Trainable parameters: {trainable_params}/{all_params} ({trainable_params/all_params:.2%})")
         
         return model, tokenizer
     
