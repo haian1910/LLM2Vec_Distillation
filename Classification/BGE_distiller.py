@@ -209,7 +209,7 @@ class Distiller(nn.Module):
 
         return model, tokenizer
     
-    def load_model(self):
+    def load_teacher_model(self):
         log_rank("Loading model for full fine-tuning...")
         config = AutoConfig.from_pretrained(
             "BAAI/bge-m3",
