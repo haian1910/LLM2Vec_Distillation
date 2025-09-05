@@ -20,13 +20,13 @@ from huggingface_hub import login
 import os
 #token = os.getenv("HF_TOKEN")
 #login(token=token)
-login(token="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")
+#ogin(token="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")
 
 
-class STSModel(nn.Module):
+class STSModel_BERT(nn.Module):
     """Wrapper for STS (Semantic Textual Similarity) tasks using a base model"""
     def __init__(self, base_model):
-        super(STSModel, self).__init__()
+        super(STSModel_BERT, self).__init__()
         self.base_model = base_model
         self.config = base_model.config  # Expose config for save_pretrained
         
@@ -89,6 +89,138 @@ class STSModel(nn.Module):
 
         # Get the CLS token representation (for sentence embedding)
         pooled_output = outputs.last_hidden_state[:, 0]
+
+        # Apply the regressor to get similarity score
+        score = self.regressor(pooled_output)
+        
+        # Ensure the predicted score is within a reasonable range (0-5)
+        score = torch.sigmoid(score) * 5.0
+
+        loss = None
+        if labels is not None:
+            # Use MSE loss for regression task
+            loss_fct = nn.MSELoss()
+            loss = loss_fct(score.view(-1), labels.view(-1))
+
+        # Create a comprehensive output structure
+        class STSModelOutput:
+            def __init__(self, loss, scores, hidden_states, attentions, last_hidden_state=None):
+                self.loss = loss
+                self.scores = scores
+                self.hidden_states = hidden_states
+                self.attentions = attentions
+                self.last_hidden_state = last_hidden_state
+
+        # Return complete output with original hidden states and attentions
+        return STSModelOutput(
+            loss=loss,
+            scores=score,
+            hidden_states=outputs.hidden_states if hasattr(outputs, "hidden_states") else None,
+            attentions=outputs.attentions if hasattr(outputs, "attentions") else None,
+            last_hidden_state=outputs.last_hidden_state if hasattr(outputs, "last_hidden_state") else None
+        )
+
+    # Add HuggingFace compatibility methods
+    def save_pretrained(self, save_directory, safe_serialization=True, **kwargs):
+        """Save the model to the specified directory."""
+        # Save the regressor separately
+        os.makedirs(save_directory, exist_ok=True)
+        regressor_path = os.path.join(save_directory, "regressor.pt")
+        torch.save(self.regressor.state_dict(), regressor_path)
+
+        # Save wrapper config
+        config_dict = {
+            "uses_token_type_ids": self.uses_token_type_ids
+        }
+        with open(os.path.join(save_directory, "sts_model_config.json"), "w") as f:
+            json.dump(config_dict, f)
+
+        # Save the base model
+        return self.base_model.save_pretrained(save_directory, safe_serialization=safe_serialization, **kwargs)
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        """Load from pretrained."""
+        # First load the base model
+        base_model = AutoModel.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+
+        # Create the wrapper
+        model = cls(base_model)
+
+        # Load regressor weights if they exist
+        regressor_path = os.path.join(pretrained_model_name_or_path, "regressor.pt")
+        if os.path.exists(regressor_path):
+            regressor_state_dict = torch.load(regressor_path, map_location="cpu")
+            model.regressor.load_state_dict(regressor_state_dict)
+
+        return model
+
+class STSModel_LLM2Vec(nn.Module):
+    """Wrapper for STS (Semantic Textual Similarity) tasks using a base model"""
+    def __init__(self, base_model):
+        super(STSModel_LLM2Vec, self).__init__()
+        self.base_model = base_model
+        self.config = base_model.config  # Expose config for save_pretrained
+        
+        # Get the hidden size from the base model
+        self.hidden_size = base_model.config.hidden_size
+
+        # Create a regression head for STS score prediction (0-5 scale typically)
+        self.regressor = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size // 2),
+            nn.Tanh(),
+            nn.Linear(self.hidden_size // 2, 1)
+        )
+
+        # Check model type to determine which arguments it accepts
+        self.uses_token_type_ids = hasattr(base_model.config, "type_vocab_size") and base_model.config.type_vocab_size > 0
+        
+    def device(self):
+        return next(self.parameters()).device
+        
+    def get_input_embeddings(self):
+        """Return the input embeddings from the base model"""
+        if hasattr(self.base_model, "get_input_embeddings"):
+            return self.base_model.get_input_embeddings()
+        elif hasattr(self.base_model, "bert") and hasattr(self.base_model.bert, "embeddings"):
+            return self.base_model.bert.embeddings.word_embeddings  # BERT-specific
+        elif hasattr(self.base_model, "model") and hasattr(self.base_model.model, "embed_tokens"):
+            return self.base_model.model.embed_tokens  # LLaMA-like
+        elif hasattr(self.base_model, "transformer") and hasattr(self.base_model.transformer, "wte"):
+            return self.base_model.transformer.wte  # GPT-like
+        else:
+            raise NotImplementedError("Unsupported model architecture for embedding extraction")
+            
+    def forward(self, input_ids=None, attention_mask=None, position_ids=None, token_type_ids=None, labels=None, **kwargs):
+        # Filter kwargs to only include parameters accepted by the base model
+        filtered_kwargs = {}
+        for key, value in kwargs.items():
+            # Skip labels as they'll be handled separately
+            if key == 'labels':
+                continue  # Don't pass labels to base model
+            if key == 'token_type_ids' and not self.uses_token_type_ids:
+                continue  # Don't pass token_type_ids if model doesn't use them
+
+            filtered_kwargs[key] = value
+
+        # Only pass token_type_ids if the model supports it
+        if self.uses_token_type_ids and token_type_ids is not None:
+            filtered_kwargs["token_type_ids"] = token_type_ids
+
+        # Make sure we get hidden states and attentions
+        filtered_kwargs["output_hidden_states"] = True
+        filtered_kwargs["output_attentions"] = True
+
+        # Get outputs from the base model with filtered kwargs
+        outputs = self.base_model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            **filtered_kwargs
+        )
+
+        # Get the CLS token representation (for sentence embedding)
+        pooled_output = outputs.last_hidden_state[:, -1]
 
         # Apply the regressor to get similarity score
         score = self.regressor(pooled_output)
@@ -312,7 +444,7 @@ class Distiller(nn.Module):
                 base_model = base_model.merge_and_unload()
                 
                 # Wrap the base model with our STS model
-                model = STSModel(base_model)
+                model = STSModel_LLM2Vec(base_model)
 
                 # Apply new LoRA adapter for fine-tuning
                 if self.args.do_train:
@@ -357,7 +489,7 @@ class Distiller(nn.Module):
             )
 
             # Wrap with STS model
-            model = STSModel(base_model)
+            model = STSModel_BERT(base_model)
 
             log_rank(' > number of parameters: {:,}'.format(
                 sum([p.nelement() for p in model.parameters()])
@@ -446,7 +578,7 @@ class Distiller(nn.Module):
             self.args.teacher_model_path
         )
 
-        teacher_model = STSModel(teacher_base_model)
+        teacher_model = STSModel_LLM2Vec(teacher_base_model)
         # Load regressor if available
         if os.path.exists(regressor_path):
             log_rank("Loading regressor weights")
