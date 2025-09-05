@@ -1,6 +1,8 @@
-scikit-learn
-scipy
-matplotlib
-deepspeed==0.16.5
-peft==0.15.1
-editdistance==0.8.1
+torch==2.8.0
+transformers==4.55.4
+datasets==4.0.0
+peft==0.17.1
+deepspeed==0.17.5
+scikit-learn==1.6.1
+scipy==1.16.1
+editdistance
