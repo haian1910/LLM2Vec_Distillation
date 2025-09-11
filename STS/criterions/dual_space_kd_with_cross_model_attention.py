@@ -100,7 +100,7 @@ class DualSpaceKDWithCMA(STSLoss):
 
         # Use input_ids as context for CMA
         stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).detach()
-        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).detach()
+        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, -1]).detach()
 
         # Normalize teacher embeddings
         norm_tea_input_embeds = tea_input_embeds / (tea_input_embeds.std() + 1e-6)
