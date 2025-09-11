@@ -89,7 +89,7 @@ class DualSpaceKDWithCMA(VariousDivergence):
         # Use input_ids as context for CMA (no padding_id needed for classification)
         # Extract just the CLS token embedding from the first position
         stu_input_embeds = stu_embed_tokens(input_data["input_ids"][:, 0]).squeeze(1).detach()
-        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, 0]).squeeze(1).detach()
+        tea_input_embeds = tea_embed_tokens(input_data["teacher_input_ids"][:, -1]).squeeze(1).detach()
 
         # Normalize teacher embeddings
         norm_tea_input_embeds = tea_input_embeds / tea_input_embeds.std()
