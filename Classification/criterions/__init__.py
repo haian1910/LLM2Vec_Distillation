@@ -9,6 +9,7 @@ from .ot_rmse_cka import OT_RMSE_CKA
 from .ot_pro import OT_PRO
 from .ot_pro_rmse_cka import OT_PRO_RMSE_CKA
 from .multi_level_ot import MULTI_LEVEL_OT
+from .ira import IRA
 
 criterion_list = {
     "cross_entropy": CrossEntropyLoss,
@@ -22,7 +23,8 @@ criterion_list = {
     "ot_rmse_cka": OT_RMSE_CKA,
     "ot_pro": OT_PRO,
     "ot_pro_rmse_cka": OT_PRO_RMSE_CKA,
-    "multi_level_ot": MULTI_LEVEL_OT
+    "multi_level_ot": MULTI_LEVEL_OT,
+    "ira": IRA
 }
 
 def build_criterion(args):
@@ -30,3 +32,4 @@ def build_criterion(args):
         return criterion_list[args.criterion](args)
     else:
         raise NameError(f"Undefined criterion for {args.criterion}!")
+
